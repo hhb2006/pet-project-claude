@@ -79,7 +79,8 @@ serverless functions — no build step.
 
 Pages (`public/`):
 
-- `index.html` — your pets. Create one, see its entry/document counts, open it.
+- `index.html` — your pets. Create one (species and breed from dropdowns), see
+  its entry/document counts, open it.
 - `pet.html?id=…` — a pet's workspace, with three tabs:
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
     (with a "＋ New chat" for a fresh topic, like any LLM chat app). Chat is
@@ -87,10 +88,15 @@ Pages (`public/`):
     every message you send carries its own **"＋ Add to log"** action, which
     starts the follow-up-one-at-a-time flow and records a structured entry,
     then marks the message "✓ Added to log".
+  - **Log** — every entry added from chat, newest first, each deletable, plus
+    **Create report**: a narrative on the pet's **history and where things
+    stand now**, a behavioral profile and questions for your vet — savable to
+    Documents or downloadable as `.txt`. The report is generated from the log,
+    so the two live together.
   - **Documents** — write notes (vet visits, medication, diet), attach files
     (photos, paperwork), and keep saved reports.
-  - **Analyze** — a report on the pet's **history and where things stand now**,
-    savable to Documents or downloadable as `.txt`.
+
+A pet's name, species and breed can be edited any time via **Edit details**.
 - `db.js` — the local data layer (pets, entries, documents, attachments, chat
   sessions and messages). `shared.css`, `app.js` — styling and helpers.
 

@@ -13,13 +13,31 @@
   <header class="page">
     <h1 id="petname">…</h1>
     <p id="petmeta"></p>
+    <button type="button" class="linkbtn" id="editPet">Edit details</button>
   </header>
+
+  <div class="card" id="editCard" style="display:none; margin-bottom:16px">
+    <div class="step">
+      <h3>Edit details</h3>
+      <div class="petform">
+        <input type="text" id="eName" placeholder="Name" />
+        <select id="eSpecies"></select>
+        <input type="text" id="eSpeciesOther" placeholder="What kind of pet?" style="display:none" />
+        <select id="eBreed" style="display:none"></select>
+        <input type="text" id="eBreedOther" placeholder="Breed" style="display:none" />
+      </div>
+      <div class="rowbtns">
+        <button id="savePet">Save</button>
+        <button class="ghost" id="cancelEdit">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <div class="card">
     <div class="subtabs">
       <button data-tab="chat" class="active">Chat</button>
+      <button data-tab="log">Log</button>
       <button data-tab="docs">Documents</button>
-      <button data-tab="analyze">Analyze</button>
     </div>
 
     <!-- ── CHAT ────────────────────────────────────────────────────── -->
@@ -39,6 +57,30 @@
       </div>
     </div>
 
+    <!-- ── LOG (entries + the report generated from them) ──────────── -->
+    <div id="tab-log" style="display:none">
+      <div class="step">
+        <h3>Logged events</h3>
+        <p class="hint" id="logCount"></p>
+        <div class="rowbtns">
+          <button id="run">Create report</button>
+          <button class="ghost" id="dlLog">Download log (JSON)</button>
+        </div>
+      </div>
+      <div id="analyzeOut" style="display:none">
+        <div id="flags"></div>
+        <div class="report" id="report"></div>
+        <div class="step" style="padding-top:0">
+          <div class="rowbtns">
+            <button id="saveReport">Save to documents</button>
+            <button class="ghost" id="dlReport">Download .txt</button>
+            <button class="ghost" id="closeReport">Close report</button>
+          </div>
+        </div>
+      </div>
+      <div class="doclist" id="entrylist"></div>
+    </div>
+
     <!-- ── DOCUMENTS ───────────────────────────────────────────────── -->
     <div id="tab-docs" style="display:none">
       <div class="step">
@@ -55,25 +97,6 @@
       <div class="doclist" id="doclist"></div>
     </div>
 
-    <!-- ── ANALYZE ─────────────────────────────────────────────────── -->
-    <div id="tab-analyze" style="display:none">
-      <div class="step" id="analyzeIntro">
-        <h3>History and current status</h3>
-        <p class="hint" id="ready"></p>
-        <div class="rowbtns"><button id="run">Create report</button></div>
-      </div>
-      <div id="analyzeOut" style="display:none">
-        <div id="flags"></div>
-        <div class="report" id="report"></div>
-        <div class="step" style="padding-top:0">
-          <div class="rowbtns">
-            <button id="saveReport">Save to documents</button>
-            <button class="ghost" id="dlReport">Download .txt</button>
-            <button class="ghost" id="againReport">Start over</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 
   <p class="note">Saved privately in this browser. A record of what you observed — never a
@@ -93,11 +116,11 @@
     btn.addEventListener("click", () => {
       document.querySelectorAll(".subtabs button").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      for (const t of ["chat", "docs", "analyze"]) {
+      for (const t of ["chat", "log", "docs"]) {
         document.getElementById("tab-" + t).style.display = (t === btn.dataset.tab) ? "block" : "none";
       }
+      if (btn.dataset.tab === "log") renderEntries();
       if (btn.dataset.tab === "docs") renderDocs();
-      if (btn.dataset.tab === "analyze") refreshReady();
     });
   });
 
@@ -421,15 +444,54 @@
     renderDocs();
   });
 
-  // ── Analyze ─────────────────────────────────────────────────────────
-  let reportText = "";
-  async function refreshReady() {
-    const n = (await listEntries(petId)).length;
-    document.getElementById("ready").textContent = n === 0
-      ? `No entries yet for ${pet.name} — log a few events and come back.`
-      : `Ready to look at ${pet.name}'s ${n} logged ${n === 1 ? "entry" : "entries"}.`;
+  // ── Log: the entries added from chat ────────────────────────────────
+  async function renderEntries() {
+    const entries = (await listEntries(petId)).slice().reverse(); // newest first
+    const n = entries.length;
+    document.getElementById("logCount").textContent = n === 0
+      ? `Nothing logged for ${pet.name} yet.`
+      : `${n} logged ${n === 1 ? "event" : "events"} for ${pet.name}.`;
     document.getElementById("run").disabled = n === 0;
+    document.getElementById("dlLog").disabled = n === 0;
+
+    const el = document.getElementById("entrylist");
+    if (!n) {
+      el.innerHTML = `<div class="empty">No entries yet.<br />
+        Chat about ${esc(pet.name)}, then choose “＋ Add to log” under any message you send.</div>`;
+      return;
+    }
+    el.innerHTML = "";
+    for (const e of entries) {
+      const item = document.createElement("div");
+      item.className = "docitem";
+      item.innerHTML = `
+        <h4>🐾 ${esc(fmt(e.behavior_type))}</h4>
+        <div class="meta">${shortDate(e.logged_at)}${e.trigger ? " · trigger: " + esc(e.trigger) : ""}</div>
+        <dl class="entryfields">
+          <dt>When</dt><dd>${esc(fmt(e.timestamp))}</dd>
+          <dt>Duration</dt><dd>${esc(fmt(e.duration))}</dd>
+          <dt>Intensity (1–10)</dt><dd>${esc(fmt(e.intensity))}</dd>
+          <dt>Recovery</dt><dd>${esc(fmt(e.recovery_period))}</dd>
+        </dl>
+        <div class="actions"><button class="ghost del">Delete</button></div>`;
+      item.querySelector(".del").onclick = async () => {
+        if (!confirm("Delete this entry? The chat it came from stays.")) return;
+        await deleteEntry(e.id);
+        await renderEntries();
+        await refreshMeta();
+      };
+      el.appendChild(item);
+    }
   }
+
+  document.getElementById("dlLog").addEventListener("click", async () => {
+    const entries = await listEntries(petId);
+    download(JSON.stringify(entries, null, 2),
+      `${pet.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_log.json`, "application/json");
+  });
+
+  // ── The report, generated from the log ──────────────────────────────
+  let reportText = "";
 
   function buildReport(meta, body) {
     const dr = meta.date_range;
@@ -444,6 +506,8 @@
   document.getElementById("run").addEventListener("click", async () => {
     const runBtn = document.getElementById("run");
     runBtn.disabled = true; runBtn.textContent = "Thinking…";
+    const out = document.getElementById("analyzeOut");
+    const rep = document.getElementById("report");
     try {
       const records = await listEntries(petId);
       const res = await fetch("/.netlify/functions/analyze", {
@@ -451,11 +515,11 @@
         body: JSON.stringify({ records, pet: petContext() }),
       });
       const data = await res.json();
-      const out = document.getElementById("analyzeOut");
-      const rep = document.getElementById("report");
       if (!res.ok) {
-        out.style.display = "block"; rep.textContent = data.error || "Something went wrong.";
-        rep.classList.add("error"); return;
+        out.style.display = "block";
+        rep.textContent = data.error || "Something went wrong.";
+        rep.classList.add("error");
+        return;
       }
       rep.classList.remove("error");
       reportText = buildReport(data, data.report_body);
@@ -464,27 +528,55 @@
         : "";
       rep.textContent = reportText;
       out.style.display = "block";
-      document.getElementById("analyzeIntro").style.display = "none";
+      out.scrollIntoView({ behavior: "smooth", block: "nearest" });
     } catch {
-      document.getElementById("analyzeOut").style.display = "block";
-      document.getElementById("report").textContent = "Couldn't reach the assistant. Please try again.";
-      document.getElementById("report").classList.add("error");
+      out.style.display = "block";
+      rep.textContent = "Couldn't reach the assistant. Please try again.";
+      rep.classList.add("error");
     } finally { runBtn.textContent = "Create report"; runBtn.disabled = false; }
   });
 
   document.getElementById("saveReport").addEventListener("click", async () => {
-    const title = `Report — ${new Date().toLocaleDateString()}`;
-    await addDocument(petId, { kind: "report", title, body: reportText });
-    document.getElementById("saveReport").textContent = "Saved ✓";
-    setTimeout(() => document.getElementById("saveReport").textContent = "Save to documents", 1500);
-    refreshMeta();
+    const btn = document.getElementById("saveReport");
+    await addDocument(petId, { kind: "report", title: `Report — ${new Date().toLocaleDateString()}`, body: reportText });
+    btn.textContent = "Saved ✓";
+    setTimeout(() => btn.textContent = "Save to documents", 1500);
+    await refreshMeta();
   });
   document.getElementById("dlReport").addEventListener("click", () =>
     download(reportText, `${pet.name.toLowerCase()}_report_${new Date().toISOString().slice(0,10)}.txt`, "text/plain"));
-  document.getElementById("againReport").addEventListener("click", () => {
+  document.getElementById("closeReport").addEventListener("click", () => {
     document.getElementById("analyzeOut").style.display = "none";
-    document.getElementById("analyzeIntro").style.display = "block";
-    refreshReady();
+  });
+
+  // ── Editing the pet's details ───────────────────────────────────────
+  const petForm = wireSpeciesBreed({
+    speciesSel: document.getElementById("eSpecies"),
+    speciesOther: document.getElementById("eSpeciesOther"),
+    breedSel: document.getElementById("eBreed"),
+    breedOther: document.getElementById("eBreedOther"),
+  });
+  const editCard = document.getElementById("editCard");
+
+  document.getElementById("editPet").addEventListener("click", () => {
+    const open = editCard.style.display !== "none";
+    if (open) { editCard.style.display = "none"; return; }
+    document.getElementById("eName").value = pet.name;
+    petForm.setValues(pet.species, pet.breed);
+    editCard.style.display = "block";
+    document.getElementById("eName").focus();
+  });
+  document.getElementById("cancelEdit").addEventListener("click", () => editCard.style.display = "none");
+  document.getElementById("savePet").addEventListener("click", async () => {
+    const name = document.getElementById("eName").value.trim();
+    if (!name) { alert("What's your pet called?"); return; }
+    const species = petForm.getSpecies();
+    if (!species) { alert("What kind of pet are they?"); return; }
+    pet = await updatePet({ ...pet, name, species, breed: petForm.getBreed() });
+    applyPet();
+    await refreshMeta();
+    await renderEntries();
+    editCard.style.display = "none";
   });
 
   // ── Boot ────────────────────────────────────────────────────────────
@@ -496,12 +588,18 @@
       `${docs.length} ${docs.length === 1 ? "document" : "documents"}`;
   }
 
-  (async () => {
-    pet = petId ? await getPet(petId) : null;
-    if (!pet) { location.href = "/index.html"; return; }
+  // Everything that reflects the pet's name/species, in one place so an edit
+  // updates the whole page.
+  function applyPet() {
     document.title = `${pet.name} · Behavior Journal`;
     document.getElementById("petname").textContent = pet.name;
     input.placeholder = `Ask about ${pet.name}, or describe what they did…`;
+  }
+
+  (async () => {
+    pet = petId ? await getPet(petId) : null;
+    if (!pet) { location.href = "/index.html"; return; }
+    applyPet();
     await refreshMeta();
 
     // Pick up where you left off, or start a fresh chat.

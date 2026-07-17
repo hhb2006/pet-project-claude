@@ -41,58 +41,12 @@
 <script src="/app.js"></script>
 <script>
   const petsEl = document.getElementById("pets");
-  const speciesSel = document.getElementById("species");
-  const speciesOther = document.getElementById("speciesOther");
-  const breedSel = document.getElementById("breed");
-  const breedOther = document.getElementById("breedOther");
-
-  // Populate the species dropdown.
-  for (const s of SPECIES) {
-    const o = document.createElement("option");
-    o.value = s.value;
-    o.textContent = `${s.emoji}  ${s.label}`;
-    speciesSel.appendChild(o);
-  }
-
-  // Species drives which breeds are offered.
-  speciesSel.addEventListener("change", () => {
-    const v = speciesSel.value;
-    speciesOther.style.display = v === "other" ? "block" : "none";
-    breedOther.style.display = "none";
-    breedOther.value = "";
-
-    const breeds = BREEDS[v];
-    if (!breeds) {
-      // No curated list for this species — offer a free-text breed instead.
-      breedSel.style.display = "none";
-      breedOther.placeholder = "Breed (optional)";
-      breedOther.style.display = v === "other" ? "none" : "block";
-      return;
-    }
-    breedSel.innerHTML = `<option value="" disabled selected>Breed…</option>`;
-    for (const b of breeds) {
-      const o = document.createElement("option");
-      o.value = b; o.textContent = b;
-      breedSel.appendChild(o);
-    }
-    breedSel.style.display = "block";
+  const form = wireSpeciesBreed({
+    speciesSel: document.getElementById("species"),
+    speciesOther: document.getElementById("speciesOther"),
+    breedSel: document.getElementById("breed"),
+    breedOther: document.getElementById("breedOther"),
   });
-
-  breedSel.addEventListener("change", () => {
-    const isOther = breedSel.value === OTHER;
-    breedOther.placeholder = "Breed";
-    breedOther.style.display = isOther ? "block" : "none";
-    if (isOther) breedOther.focus();
-  });
-
-  function chosenSpecies() {
-    return speciesSel.value === "other" ? speciesOther.value.trim() : speciesSel.value;
-  }
-  function chosenBreed() {
-    if (breedOther.style.display !== "none" && breedOther.value.trim()) return breedOther.value.trim();
-    if (breedSel.style.display !== "none" && breedSel.value && breedSel.value !== OTHER) return breedSel.value;
-    return "";
-  }
 
   async function render() {
     const pets = await listPets();
@@ -137,14 +91,11 @@
   document.getElementById("add").addEventListener("click", async () => {
     const name = document.getElementById("name").value.trim();
     if (!name) { alert("What's your pet called?"); return; }
-    const species = chosenSpecies();
+    const species = form.getSpecies();
     if (!species) { alert("What kind of pet are they?"); return; }
-    await createPet({ name, species, breed: chosenBreed() });
+    await createPet({ name, species, breed: form.getBreed() });
     document.getElementById("name").value = "";
-    speciesSel.selectedIndex = 0;
-    speciesOther.value = ""; speciesOther.style.display = "none";
-    breedSel.style.display = "none"; breedSel.innerHTML = "";
-    breedOther.value = ""; breedOther.style.display = "none";
+    form.reset();
     render();
   });
   document.getElementById("name").addEventListener("keydown", e => {

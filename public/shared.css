@@ -182,6 +182,15 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .docitem .body { white-space: pre-wrap; margin-top: 8px; font-size: 0.92rem; }
 .docitem .actions { margin-top: 8px; display: flex; gap: 8px; }
 .docitem .actions button { padding: 5px 10px; font-size: 0.82rem; }
+.entryfields {
+  margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px;
+  font-size: 0.88rem;
+}
+.entryfields dt { color: var(--muted); }
+.entryfields dd { margin: 0; }
+
+/* "Edit details" under the pet's name */
+header.page .linkbtn { margin-top: 6px; }
 details summary { cursor: pointer; color: var(--accent); font-size: 0.88rem; }
 
 /* Footer */

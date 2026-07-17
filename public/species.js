@@ -147,4 +147,96 @@ function emojiFor(species) {
   return "🐾";
 }
 
+// Wires a species <select> to a dependent breed <select>, with free-text
+// fallbacks for "Other…". Used by both the create form and the edit form.
+// Returns getters/setters so callers don't repeat the cascade logic.
+function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
+  speciesSel.innerHTML = `<option value="" disabled selected>Species…</option>`;
+  for (const s of SPECIES) {
+    const o = document.createElement("option");
+    o.value = s.value;
+    o.textContent = `${s.emoji}  ${s.label}`;
+    speciesSel.appendChild(o);
+  }
+
+  function populateBreeds(species, selected) {
+    breedOther.value = "";
+    breedOther.style.display = "none";
+    const breeds = BREEDS[species];
+    if (!breeds) {
+      // No curated list for this species — offer a free-text breed instead.
+      breedSel.style.display = "none";
+      breedSel.innerHTML = "";
+      breedOther.placeholder = "Breed (optional)";
+      breedOther.style.display = species ? "block" : "none";
+      if (selected) breedOther.value = selected;
+      return;
+    }
+    breedSel.innerHTML = `<option value="" disabled selected>Breed…</option>`;
+    for (const b of breeds) {
+      const o = document.createElement("option");
+      o.value = b; o.textContent = b;
+      breedSel.appendChild(o);
+    }
+    breedSel.style.display = "block";
+    if (selected) {
+      if (breeds.includes(selected)) {
+        breedSel.value = selected;
+      } else {
+        // A breed typed by hand previously — keep it in the free-text box.
+        breedSel.value = OTHER;
+        breedOther.placeholder = "Breed";
+        breedOther.value = selected;
+        breedOther.style.display = "block";
+      }
+    }
+  }
+
+  speciesSel.addEventListener("change", () => {
+    const v = speciesSel.value;
+    speciesOther.style.display = v === "other" ? "block" : "none";
+    if (v === "other") speciesOther.value = "";
+    populateBreeds(v);
+  });
+
+  breedSel.addEventListener("change", () => {
+    const isOther = breedSel.value === OTHER;
+    breedOther.placeholder = "Breed";
+    breedOther.style.display = isOther ? "block" : "none";
+    if (isOther) breedOther.focus();
+  });
+
+  return {
+    getSpecies() {
+      return speciesSel.value === "other" ? speciesOther.value.trim() : (speciesSel.value || "");
+    },
+    getBreed() {
+      if (breedOther.style.display !== "none" && breedOther.value.trim()) return breedOther.value.trim();
+      if (breedSel.style.display !== "none" && breedSel.value && breedSel.value !== OTHER) return breedSel.value;
+      return "";
+    },
+    setValues(species, breed) {
+      if (!species) { this.reset(); return; }
+      if (SPECIES.some(s => s.value === species)) {
+        speciesSel.value = species;
+        speciesOther.style.display = "none";
+        speciesOther.value = "";
+        populateBreeds(species, breed);
+      } else {
+        // A species typed by hand — restore it into the "Other…" box.
+        speciesSel.value = "other";
+        speciesOther.style.display = "block";
+        speciesOther.value = species;
+        populateBreeds("other", breed);
+      }
+    },
+    reset() {
+      speciesSel.selectedIndex = 0;
+      speciesOther.value = ""; speciesOther.style.display = "none";
+      breedSel.innerHTML = ""; breedSel.style.display = "none";
+      breedOther.value = ""; breedOther.style.display = "none";
+    },
+  };
+}
+
 if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, emojiFor, MIXED, OTHER };

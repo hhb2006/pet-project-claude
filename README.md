@@ -73,33 +73,44 @@ it **never** suggests diagnoses.
 
 ## Web app (Netlify)
 
-All three tools run in the browser, with no install for the user — a small
-static site plus three serverless functions. They share **one** log, stored
-privately in the visitor's browser (`localStorage`), with a "Download log (JSON)"
-button on every page.
+The web app organizes everything **by pet**: each pet is its own project, with
+its own log, documents, and reports. It's a small static site plus three
+serverless functions — no build step.
 
 Pages (`public/`):
 
-- `index.html` — landing page linking to the three tools.
-- `log.html` — the conversational logger (follow-up-one-at-a-time flow).
-- `analyze.html` — turns the log into a warm observer's report you can download
-  as a dated `.txt`.
-- `journal.html` — Ame's Journal: a gentle guided walkthrough with a
-  history-grounded reflection.
-- `shared.css`, `app.js` — shared styling and log helpers.
+- `index.html` — your pets. Create one, see its entry/document counts, open it.
+- `pet.html?id=…` — a pet's workspace, with three tabs:
+  - **Log** — describe what happened, then choose per behavior:
+    **"Just ask for advice"** (help, nothing saved) or **"Add to log"** (the
+    follow-up-one-at-a-time flow that records a structured entry). After advice
+    you can still add it to the log.
+  - **Documents** — write notes (vet visits, medication, diet), attach files
+    (photos, paperwork), and keep saved reports.
+  - **Analyze** — a report on the pet's **history and where things stand now**,
+    savable to Documents or downloadable as `.txt`.
+- `db.js` — the local data layer. `shared.css`, `app.js` — styling and helpers.
 
 Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**
 
-- `chat.js` — logger; calls Claude with a forced tool for clean structured output.
+- `chat.js` — logging; calls Claude with a forced tool for clean structured output.
 - `analyze.js` — computes the patterns deterministically (a JS port of
   `analyze_behavior_log.py`), then has Claude write the narrative report.
-- `reflect.js` — phrases the journal's verified observations warmly; returns
-  nothing if the key/API is unavailable, so the journal falls back gracefully.
+- `advise.js` — the "just ask" path: warm, practical, **non-diagnostic** help with
+  clear signposting about when to involve a vet or trainer, and emergencies
+  pointed straight at a professional.
 
-`netlify.toml` publishes `public/` and wires up the functions. No build step.
-There is no shared database, so the log does not sync across devices — see the
-note below to upgrade that.
+### Where your data lives
+
+Everything is stored **privately in your own browser**, in IndexedDB (which,
+unlike `localStorage`, holds real files so attachments work). Nothing is uploaded;
+only the text you send to the assistant leaves the page. An existing single-pet
+log from an earlier version is migrated automatically into a pet on first load.
+
+Because storage is per-browser, your pets do **not** sync across devices, and
+clearing site data removes them — use the download buttons to keep copies. See
+the note below to move storage server-side.
 
 ### Deploying
 

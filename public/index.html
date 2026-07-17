@@ -8,44 +8,104 @@
 </head>
 <body>
 <div class="wrap">
-  <nav id="nav"></nav>
-
   <header class="page">
     <h1>🐾 Pet Behavior Journal</h1>
-    <p>A gentle place to notice, record, and understand what your pet does.</p>
+    <p>A gentle place to notice, record, and understand what your pets do.</p>
   </header>
 
-  <div class="tiles">
-    <a class="tile" href="/log.html">
-      <h2><span class="emoji">📝</span>Log an event</h2>
-      <p>Describe what your pet did in plain words. I'll ask a few gentle questions
-         and write down a clean record.</p>
-    </a>
-    <a class="tile" href="/analyze.html">
-      <h2><span class="emoji">🔍</span>Analyze the history</h2>
-      <p>Turn your logged events into a warm, plain-English report you could share
-         with a vet or trainer — patterns, trends, and questions to ask.</p>
-    </a>
-    <a class="tile" href="/journal.html">
-      <h2><span class="emoji">🐶</span>Ame's Journal</h2>
-      <p>A simple, friendly walkthrough for logging one moment — and a little
-         reflection on what it reveals.</p>
-    </a>
+  <div class="card" style="margin-bottom:16px">
+    <div class="step">
+      <h3>Add a pet</h3>
+      <div style="display:flex; gap:8px; flex-wrap:wrap">
+        <input type="text" id="name" placeholder="Name (e.g. Ame)" style="flex:2; min-width:140px" />
+        <input type="text" id="species" placeholder="Species (e.g. dog)" style="flex:1; min-width:120px" />
+      </div>
+      <p class="hint">Each pet gets their own log, documents, and reports.</p>
+      <div class="rowbtns"><button id="add">Create</button></div>
+    </div>
   </div>
 
-  <div class="footerbar">
-    <span id="count">0 entries saved on this device</span>
-    <span><a onclick="downloadJSON()">Download log (JSON)</a></span>
-  </div>
-  <p class="note">Everything is saved privately in your browser. This is a record of what
-     you observed — never a diagnosis.</p>
+  <div class="tiles" id="pets"></div>
+
+  <p class="note">Everything is saved privately in this browser. A record of what you
+     observed — never a diagnosis.</p>
 </div>
 
+<script src="/db.js"></script>
 <script src="/app.js"></script>
 <script>
-  const n = entryCount();
-  document.getElementById("count").textContent =
-    `${n} ${n === 1 ? "entry" : "entries"} saved on this device`;
+  const petsEl = document.getElementById("pets");
+
+  function emoji(species) {
+    const s = (species || "").toLowerCase();
+    if (s.includes("dog")) return "🐶";
+    if (s.includes("cat")) return "🐱";
+    if (s.includes("rabbit") || s.includes("bunny")) return "🐰";
+    if (s.includes("bird") || s.includes("parrot")) return "🐦";
+    if (s.includes("horse")) return "🐴";
+    return "🐾";
+  }
+
+  async function render() {
+    const pets = await listPets();
+    if (pets.length === 0) {
+      petsEl.innerHTML = `<div class="card"><div class="empty">No pets yet.<br />
+        Add one above to start their journal.</div></div>`;
+      return;
+    }
+    petsEl.innerHTML = "";
+    for (const pet of pets) {
+      const entries = await listEntries(pet.id);
+      const docs = await listDocuments(pet.id);
+      const last = entries.length ? new Date(entries[entries.length - 1].logged_at).toLocaleDateString() : null;
+      const tile = document.createElement("div");
+      tile.className = "tile";
+      tile.innerHTML = `
+        <div class="petrow">
+          <div class="avatar">${emoji(pet.species)}</div>
+          <div class="grow">
+            <h2>${esc(pet.name)}</h2>
+            <p>${pet.species ? esc(pet.species) + " · " : ""}${entries.length} ${entries.length === 1 ? "entry" : "entries"}
+               · ${docs.length} ${docs.length === 1 ? "document" : "documents"}${last ? " · last logged " + last : ""}</p>
+          </div>
+          <button class="del" title="Delete ${esc(pet.name)}">Delete</button>
+        </div>`;
+      tile.style.cursor = "pointer";
+      tile.addEventListener("click", (e) => {
+        if (e.target.classList.contains("del")) return;
+        location.href = `/pet.html?id=${encodeURIComponent(pet.id)}`;
+      });
+      tile.querySelector(".del").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete ${pet.name} and everything logged for them? This can't be undone.`)) return;
+        await deletePet(pet.id);
+        render();
+      });
+      petsEl.appendChild(tile);
+    }
+  }
+
+  document.getElementById("add").addEventListener("click", async () => {
+    const name = document.getElementById("name").value.trim();
+    const species = document.getElementById("species").value.trim();
+    if (!name) { alert("What's your pet called?"); return; }
+    await createPet({ name, species });
+    document.getElementById("name").value = "";
+    document.getElementById("species").value = "";
+    render();
+  });
+  document.getElementById("name").addEventListener("keydown", e => {
+    if (e.key === "Enter") document.getElementById("add").click();
+  });
+
+  (async () => {
+    const migrated = await migrateLegacyLog();
+    await render();
+    if (migrated) {
+      const n = (await listEntries(migrated.id)).length;
+      alert(`Welcome back! Your ${n} existing ${n === 1 ? "entry has" : "entries have"} been moved into a pet called "${migrated.name}". You can rename or delete them any time.`);
+    }
+  })();
 </script>
 </body>
 </html>

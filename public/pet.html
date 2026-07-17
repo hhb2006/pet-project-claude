@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pet · Behavior Journal</title>
+<link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav class="tabs"><a href="/index.html">← All pets</a></nav>
+
+  <header class="page">
+    <h1 id="petname">…</h1>
+    <p id="petmeta"></p>
+  </header>
+
+  <div class="card">
+    <div class="subtabs">
+      <button data-tab="log" class="active">Log</button>
+      <button data-tab="docs">Documents</button>
+      <button data-tab="analyze">Analyze</button>
+    </div>
+
+    <!-- ── LOG ─────────────────────────────────────────────────────── -->
+    <div id="tab-log">
+      <div class="chat">
+        <div class="log" id="chatlog"></div>
+        <form class="composer" id="composer">
+          <textarea id="input" rows="1" placeholder="What happened?" autofocus></textarea>
+        </form>
+        <div class="choice">
+          <button type="button" id="askBtn" class="ghost">Just ask for advice</button>
+          <button type="button" id="logBtn">Add to log</button>
+        </div>
+        <p class="choicehint" id="choicehint">Advice isn't saved. "Add to log" records it in the journal.</p>
+      </div>
+    </div>
+
+    <!-- ── DOCUMENTS ───────────────────────────────────────────────── -->
+    <div id="tab-docs" style="display:none">
+      <div class="step">
+        <h3>Add a note</h3>
+        <input type="text" id="noteTitle" placeholder="Title (e.g. Vet visit, 12 July)" style="width:100%" />
+        <textarea id="noteBody" rows="3" placeholder="Anything you want to remember — vet visits, medication, diet changes…" style="width:100%; margin-top:8px; max-height:none"></textarea>
+        <div class="rowbtns">
+          <button id="saveNote">Save note</button>
+          <button class="ghost" id="attachBtn">Attach a file</button>
+          <input type="file" id="fileInput" style="display:none" multiple />
+        </div>
+        <p class="hint">Files (photos, vet paperwork) are stored in this browser only.</p>
+      </div>
+      <div class="doclist" id="doclist"></div>
+    </div>
+
+    <!-- ── ANALYZE ─────────────────────────────────────────────────── -->
+    <div id="tab-analyze" style="display:none">
+      <div class="step" id="analyzeIntro">
+        <h3>History and current status</h3>
+        <p class="hint" id="ready"></p>
+        <div class="rowbtns"><button id="run">Create report</button></div>
+      </div>
+      <div id="analyzeOut" style="display:none">
+        <div id="flags"></div>
+        <div class="report" id="report"></div>
+        <div class="step" style="padding-top:0">
+          <div class="rowbtns">
+            <button id="saveReport">Save to documents</button>
+            <button class="ghost" id="dlReport">Download .txt</button>
+            <button class="ghost" id="againReport">Start over</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note">Saved privately in this browser. A record of what you observed — never a
+     diagnosis. For anything worrying, please talk to a vet.</p>
+</div>
+
+<script src="/db.js"></script>
+<script src="/app.js"></script>
+<script>
+  const petId = new URLSearchParams(location.search).get("id");
+  let pet = null;
+
+  // ── Tabs ────────────────────────────────────────────────────────────
+  document.querySelectorAll(".subtabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".subtabs button").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      for (const t of ["log", "docs", "analyze"]) {
+        document.getElementById("tab-" + t).style.display = (t === btn.dataset.tab) ? "block" : "none";
+      }
+      if (btn.dataset.tab === "docs") renderDocs();
+      if (btn.dataset.tab === "analyze") refreshReady();
+    });
+  });
+
+  // ── Chat plumbing ───────────────────────────────────────────────────
+  const chatlog = document.getElementById("chatlog");
+  const input = document.getElementById("input");
+  const askBtn = document.getElementById("askBtn");
+  const logBtn = document.getElementById("logBtn");
+
+  let mode = null;              // "log" | "advice" once chosen
+  let messages = [];            // conversation for whichever backend
+  let lastQuestion = null;
+  let lastDescription = null;   // so an advice chat can still be logged afterwards
+  let finished = false;
+
+  function bubble(text, cls) {
+    const d = document.createElement("div");
+    d.className = "msg " + cls;
+    d.textContent = text;
+    chatlog.appendChild(d);
+    chatlog.scrollTop = chatlog.scrollHeight;
+    return d;
+  }
+  function adviceBubble(text) {
+    const d = document.createElement("div");
+    d.className = "msg advice";
+    d.innerHTML = `<span class="pill">Advice · not logged</span>`;
+    const p = document.createElement("div");
+    p.style.whiteSpace = "pre-wrap";
+    p.textContent = text;
+    d.appendChild(p);
+    chatlog.appendChild(d);
+    chatlog.scrollTop = chatlog.scrollHeight;
+    return d;
+  }
+  function typing(on) {
+    let t = document.getElementById("typing");
+    if (on && !t) {
+      t = document.createElement("div");
+      t.id = "typing"; t.className = "typing"; t.textContent = "thinking…";
+      chatlog.appendChild(t); chatlog.scrollTop = chatlog.scrollHeight;
+    } else if (!on && t) t.remove();
+  }
+  function busy(on) { askBtn.disabled = on; logBtn.disabled = on; }
+
+  function currentText() { return input.value.trim(); }
+  function consumeInput() {
+    const t = currentText();
+    input.value = ""; input.style.height = "auto";
+    return t;
+  }
+
+  // ── "Just ask" path — advice, never saved ───────────────────────────
+  askBtn.addEventListener("click", async () => {
+    const text = consumeInput();
+    if (!text) { input.focus(); return; }
+    if (mode === "log" && !finished) resetChat();
+    mode = "advice";
+    if (!lastDescription) lastDescription = text;
+    bubble(text, "user");
+    messages.push({ role: "user", content: text });
+    setHint();
+    await callAdvise();
+  });
+
+  async function callAdvise() {
+    typing(true); busy(true);
+    try {
+      const res = await fetch("/.netlify/functions/advise", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages, pet: { name: pet.name, species: pet.species } }),
+      });
+      const data = await res.json();
+      typing(false);
+      if (!res.ok) { bubble(data.error || "Something went wrong.", "assistant").classList.add("error"); return; }
+      adviceBubble(data.reply);
+      messages.push({ role: "assistant", content: data.reply });
+      offerToLog();
+    } catch {
+      typing(false);
+      bubble("I couldn't reach the assistant just now. Please try again.", "assistant").classList.add("error");
+    } finally { busy(false); }
+  }
+
+  function offerToLog() {
+    if (document.getElementById("convert")) return;
+    const wrap = document.createElement("div");
+    wrap.id = "convert";
+    wrap.className = "choicehint";
+    wrap.innerHTML = `Want this written down too? <a id="convertLink" style="color:var(--accent);cursor:pointer">Add it to ${esc(pet.name)}'s log</a>`;
+    chatlog.appendChild(wrap);
+    document.getElementById("convertLink").addEventListener("click", () => {
+      wrap.remove();
+      startLogFrom(lastDescription);
+    });
+  }
+
+  // ── "Add to log" path — the structured logging flow ──────────────────
+  logBtn.addEventListener("click", async () => {
+    const text = consumeInput();
+    if (!text) { input.focus(); return; }
+    if (mode === "advice") { startLogFrom(text); return; }
+    mode = "log";
+    if (finished) resetChat();
+    bubble(text, "user");
+    if (lastQuestion) { messages.push({ role: "assistant", content: lastQuestion }); lastQuestion = null; }
+    messages.push({ role: "user", content: text });
+    setHint();
+    await callChat();
+  });
+
+  function startLogFrom(description) {
+    mode = "log";
+    messages = [{ role: "user", content: description }];
+    lastQuestion = null; finished = false;
+    bubble(`Let's write that down for ${pet.name}.`, "assistant");
+    setHint();
+    callChat();
+  }
+
+  async function callChat() {
+    typing(true); busy(true);
+    try {
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+      const data = await res.json();
+      typing(false);
+      if (!res.ok) { bubble(data.error || "Something went wrong.", "assistant").classList.add("error"); return; }
+      handleRecord(data);
+    } catch {
+      typing(false);
+      bubble("I couldn't reach the assistant just now. Please try again.", "assistant").classList.add("error");
+    } finally { busy(false); }
+  }
+
+  async function handleRecord(r) {
+    if (!r.complete && r.next_question) {
+      lastQuestion = r.next_question;
+      bubble(r.next_question, "assistant");
+      return;
+    }
+    const wrap = document.createElement("div");
+    wrap.className = "msg summary";
+    wrap.innerHTML = `
+      <h3>Written down for ${esc(pet.name)} 🐾</h3>
+      <dl>
+        <dt>Behavior</dt><dd>${esc(fmt(r.behavior_type))}</dd>
+        <dt>Possible trigger</dt><dd>${esc(fmt(r.trigger))}</dd>
+        <dt>When</dt><dd>${esc(fmt(r.timestamp))}</dd>
+        <dt>Duration</dt><dd>${esc(fmt(r.duration))}</dd>
+        <dt>Intensity (1–10)</dt><dd>${esc(fmt(r.intensity))}</dd>
+        <dt>Recovery period</dt><dd>${esc(fmt(r.recovery_period))}</dd>
+      </dl>`;
+    chatlog.appendChild(wrap);
+    await addEntry(petId, r);
+    bubble("Saved. Thank you for taking the time. 🐾", "assistant");
+    finished = true;
+    await refreshMeta();
+  }
+
+  function resetChat() {
+    messages = []; lastQuestion = null; finished = false; lastDescription = null; mode = null;
+    chatlog.innerHTML = "";
+    greet();
+    setHint();
+  }
+  function setHint() {
+    const h = document.getElementById("choicehint");
+    h.textContent = mode === "advice"
+      ? "You're getting advice — nothing here is saved unless you add it to the log."
+      : mode === "log"
+      ? "You're logging this event."
+      : "Advice isn't saved. \"Add to log\" records it in the journal.";
+  }
+  function greet() {
+    bubble(`Tell me what ${pet.name} did. Then choose: ask for advice, or write it down.`, "assistant");
+  }
+
+  input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = input.scrollHeight + "px"; });
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); (mode === "advice" ? askBtn : logBtn).click(); }
+  });
+  document.getElementById("composer").addEventListener("submit", e => e.preventDefault());
+
+  // ── Documents ───────────────────────────────────────────────────────
+  async function renderDocs() {
+    const [docs, atts] = await Promise.all([listDocuments(petId), listAttachments(petId)]);
+    const el = document.getElementById("doclist");
+    if (!docs.length && !atts.length) {
+      el.innerHTML = `<div class="empty">No documents yet.<br />Save a report or write a note above.</div>`;
+      return;
+    }
+    el.innerHTML = "";
+    for (const d of docs) {
+      const item = document.createElement("div");
+      item.className = "docitem";
+      item.innerHTML = `
+        <h4>${d.kind === "report" ? "📄" : "📝"} ${esc(d.title)}</h4>
+        <div class="meta">${d.kind === "report" ? "Report" : "Note"} · ${shortDate(d.created_at)}</div>
+        <details><summary>Read</summary><div class="body">${esc(d.body)}</div></details>
+        <div class="actions">
+          <button class="ghost dl">Download</button>
+          <button class="ghost del">Delete</button>
+        </div>`;
+      item.querySelector(".dl").onclick = () =>
+        download(d.body, `${d.title.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}.txt`, "text/plain");
+      item.querySelector(".del").onclick = async () => {
+        if (!confirm(`Delete "${d.title}"?`)) return;
+        await deleteDocument(d.id); renderDocs(); refreshMeta();
+      };
+      el.appendChild(item);
+    }
+    for (const a of atts) {
+      const item = document.createElement("div");
+      item.className = "docitem";
+      item.innerHTML = `
+        <h4>📎 ${esc(a.name)}</h4>
+        <div class="meta">${esc(a.type)} · ${fileSize(a.size)} · ${shortDate(a.created_at)}</div>
+        <div class="actions">
+          <button class="ghost dl">Download</button>
+          <button class="ghost del">Delete</button>
+        </div>`;
+      item.querySelector(".dl").onclick = () => download(a.blob, a.name);
+      item.querySelector(".del").onclick = async () => {
+        if (!confirm(`Delete "${a.name}"?`)) return;
+        await deleteAttachment(a.id); renderDocs();
+      };
+      el.appendChild(item);
+    }
+  }
+
+  document.getElementById("saveNote").addEventListener("click", async () => {
+    const title = document.getElementById("noteTitle").value.trim();
+    const body = document.getElementById("noteBody").value.trim();
+    if (!title && !body) return;
+    await addDocument(petId, { kind: "note", title: title || "Note", body });
+    document.getElementById("noteTitle").value = "";
+    document.getElementById("noteBody").value = "";
+    renderDocs(); refreshMeta();
+  });
+  document.getElementById("attachBtn").addEventListener("click", () => document.getElementById("fileInput").click());
+  document.getElementById("fileInput").addEventListener("change", async (e) => {
+    for (const file of e.target.files) await addAttachment(petId, file);
+    e.target.value = "";
+    renderDocs();
+  });
+
+  // ── Analyze ─────────────────────────────────────────────────────────
+  let reportText = "";
+  async function refreshReady() {
+    const n = (await listEntries(petId)).length;
+    document.getElementById("ready").textContent = n === 0
+      ? `No entries yet for ${pet.name} — log a few events and come back.`
+      : `Ready to look at ${pet.name}'s ${n} logged ${n === 1 ? "entry" : "entries"}.`;
+    document.getElementById("run").disabled = n === 0;
+  }
+
+  function buildReport(meta, body) {
+    const dr = meta.date_range;
+    const span = (dr.first && dr.last) ? `Entries span ${dr.first.slice(0,10)} to ${dr.last.slice(0,10)}.\n` : "";
+    return `BEHAVIOR OBSERVER'S REPORT — ${pet.name.toUpperCase()}\n` +
+      `Generated ${new Date().toLocaleDateString(undefined, { year:"numeric", month:"long", day:"numeric" })}\n` +
+      `Based on ${meta.record_count} logged ${meta.record_count === 1 ? "entry" : "entries"}.\n` + span +
+      "An observational summary of what was recorded — not a medical document.\n" +
+      "=".repeat(70) + "\n\n" + body + "\n";
+  }
+
+  document.getElementById("run").addEventListener("click", async () => {
+    const runBtn = document.getElementById("run");
+    runBtn.disabled = true; runBtn.textContent = "Thinking…";
+    try {
+      const records = await listEntries(petId);
+      const res = await fetch("/.netlify/functions/analyze", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ records, pet: { name: pet.name, species: pet.species } }),
+      });
+      const data = await res.json();
+      const out = document.getElementById("analyzeOut");
+      const rep = document.getElementById("report");
+      if (!res.ok) {
+        out.style.display = "block"; rep.textContent = data.error || "Something went wrong.";
+        rep.classList.add("error"); return;
+      }
+      rep.classList.remove("error");
+      reportText = buildReport(data, data.report_body);
+      document.getElementById("flags").innerHTML = (data.flags && data.flags.length)
+        ? `<div class="flags"><h4>Patterns noticed</h4><ul>${data.flags.map(f => `<li>${esc(f)}</li>`).join("")}</ul></div>`
+        : "";
+      rep.textContent = reportText;
+      out.style.display = "block";
+      document.getElementById("analyzeIntro").style.display = "none";
+    } catch {
+      document.getElementById("analyzeOut").style.display = "block";
+      document.getElementById("report").textContent = "Couldn't reach the assistant. Please try again.";
+      document.getElementById("report").classList.add("error");
+    } finally { runBtn.textContent = "Create report"; runBtn.disabled = false; }
+  });
+
+  document.getElementById("saveReport").addEventListener("click", async () => {
+    const title = `Report — ${new Date().toLocaleDateString()}`;
+    await addDocument(petId, { kind: "report", title, body: reportText });
+    document.getElementById("saveReport").textContent = "Saved ✓";
+    setTimeout(() => document.getElementById("saveReport").textContent = "Save to documents", 1500);
+    refreshMeta();
+  });
+  document.getElementById("dlReport").addEventListener("click", () =>
+    download(reportText, `${pet.name.toLowerCase()}_report_${new Date().toISOString().slice(0,10)}.txt`, "text/plain"));
+  document.getElementById("againReport").addEventListener("click", () => {
+    document.getElementById("analyzeOut").style.display = "none";
+    document.getElementById("analyzeIntro").style.display = "block";
+    refreshReady();
+  });
+
+  // ── Boot ────────────────────────────────────────────────────────────
+  async function refreshMeta() {
+    const [entries, docs] = await Promise.all([listEntries(petId), listDocuments(petId)]);
+    document.getElementById("petmeta").textContent =
+      `${pet.species ? pet.species + " · " : ""}${entries.length} ${entries.length === 1 ? "entry" : "entries"} · ` +
+      `${docs.length} ${docs.length === 1 ? "document" : "documents"}`;
+  }
+
+  (async () => {
+    pet = petId ? await getPet(petId) : null;
+    if (!pet) { location.href = "/index.html"; return; }
+    document.title = `${pet.name} · Behavior Journal`;
+    document.getElementById("petname").textContent = pet.name;
+    await refreshMeta();
+    greet();
+    input.placeholder = `What did ${pet.name} do?`;
+  })();
+</script>
+</body>
+</html>

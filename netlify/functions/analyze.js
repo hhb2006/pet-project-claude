@@ -24,12 +24,19 @@ inner state or health.
 to hand to their vet or trainer, not a medical form.
 - If the data is thin, say so plainly rather than over-reading it.
 
-Produce EXACTLY these three sections, using these exact headers on their own lines:
+Produce EXACTLY these four sections, using these exact headers on their own lines:
 
 NARRATIVE SUMMARY
-A few short paragraphs summarizing what the log shows: the main behaviors, the triggers \
-that recur, and any meaningful changes over time (rising intensity, longer recovery, a \
-trigger provoking stronger reactions). Flag those changes clearly but without alarm.
+A few short paragraphs summarizing what the log shows over its whole history: the main \
+behaviors, the triggers that recur, and any meaningful changes over time (rising intensity, \
+longer recovery, a trigger provoking stronger reactions). Flag those changes clearly but \
+without alarm.
+
+WHERE THINGS STAND NOW
+A short paragraph on the current picture, weighted to the most recent entries: what has been \
+happening lately, whether things appear to be settling, holding steady, or intensifying \
+compared with earlier, and how recent the last entry is. If there are too few recent entries \
+to say, say that plainly rather than guessing.
 
 BEHAVIORAL PROFILE
 A concise bullet list (use "- " for each bullet) of the pet's observed patterns: \
@@ -120,12 +127,17 @@ exports.handler = async (event) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return json(500, { error: "The site owner hasn't set ANTHROPIC_API_KEY yet." });
 
-  let records;
-  try { ({ records } = JSON.parse(event.body || "{}")); }
+  let records, pet;
+  try { ({ records, pet } = JSON.parse(event.body || "{}")); }
   catch { return json(400, { error: "Could not read the request." }); }
   if (!Array.isArray(records) || records.length === 0) {
     return json(400, { error: "There are no logged entries to analyze yet. Log a few events first." });
   }
+
+  const system = pet && pet.name
+    ? `${SYSTEM_PROMPT}\n\nThe pet is called ${pet.name}${pet.species ? `, a ${pet.species}` : ""}. ` +
+      `Refer to ${pet.name} by name throughout.`
+    : SYSTEM_PROMPT;
 
   const analysis = analyze(records);
   const { records_chronological, ...meta } = analysis;
@@ -142,7 +154,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 2048,
-        system: SYSTEM_PROMPT,
+        system,
         messages: [{ role: "user", content: userContent }],
       }),
     });

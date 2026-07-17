@@ -79,10 +79,12 @@
 </div>
 
 <script src="/db.js"></script>
+<script src="/species.js"></script>
 <script src="/app.js"></script>
 <script>
   const petId = new URLSearchParams(location.search).get("id");
   let pet = null;
+  function petContext() { return { name: pet.name, species: pet.species, breed: pet.breed || "" }; }
 
   // ── Tabs ────────────────────────────────────────────────────────────
   document.querySelectorAll(".subtabs button").forEach(btn => {
@@ -164,7 +166,7 @@
     try {
       const res = await fetch("/.netlify/functions/advise", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages, pet: { name: pet.name, species: pet.species } }),
+        body: JSON.stringify({ messages, pet: petContext() }),
       });
       const data = await res.json();
       typing(false);
@@ -370,7 +372,7 @@
       const records = await listEntries(petId);
       const res = await fetch("/.netlify/functions/analyze", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ records, pet: { name: pet.name, species: pet.species } }),
+        body: JSON.stringify({ records, pet: petContext() }),
       });
       const data = await res.json();
       const out = document.getElementById("analyzeOut");
@@ -412,8 +414,9 @@
   // ── Boot ────────────────────────────────────────────────────────────
   async function refreshMeta() {
     const [entries, docs] = await Promise.all([listEntries(petId), listDocuments(petId)]);
+    const kind = [pet.breed, pet.species].filter(Boolean).join(" · ");
     document.getElementById("petmeta").textContent =
-      `${pet.species ? pet.species + " · " : ""}${entries.length} ${entries.length === 1 ? "entry" : "entries"} · ` +
+      `${kind ? kind + " · " : ""}${entries.length} ${entries.length === 1 ? "entry" : "entries"} · ` +
       `${docs.length} ${docs.length === 1 ? "document" : "documents"}`;
   }
 

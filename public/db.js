@@ -3,7 +3,7 @@
 // alongside its logs and documents. Nothing is uploaded anywhere.
 //
 // Shape:
-//   pets        { id, name, species, owner, created_at }
+//   pets        { id, name, species, breed, owner, created_at }
 //   entries     { id, pet_id, logged_at, behavior_type, trigger, timestamp,
 //                 duration, intensity, recovery_period, time_of_day }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
@@ -69,10 +69,11 @@ async function listPets() {
   return (pets || []).sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 }
 async function getPet(id) { return tx("pets", "readonly", s => reqOf(s.get(id))); }
-async function createPet({ name, species, owner }) {
+async function createPet({ name, species, breed, owner }) {
   const pet = {
     id: uid(), name: name.trim(), species: (species || "").trim(),
-    owner: (owner || "").trim(), created_at: new Date().toISOString(),
+    breed: (breed || "").trim(), owner: (owner || "").trim(),
+    created_at: new Date().toISOString(),
   };
   await tx("pets", "readwrite", s => s.put(pet));
   return pet;

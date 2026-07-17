@@ -118,6 +118,22 @@ button.ghost { background: transparent; color: var(--accent); border: 1px solid 
 .flags h4 { margin: 0 0 8px; font-size: 0.95rem; }
 .flags ul { margin: 0; padding-left: 18px; }
 
+/* Add-a-pet form */
+.petform { display: grid; gap: 8px; }
+.petform input, .petform select { width: 100%; }
+select {
+  border: 1px solid var(--line); border-radius: 12px; padding: 11px 14px;
+  font: inherit; color: inherit; background: var(--bg); width: 100%;
+  appearance: none; cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+                    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position: calc(100% - 19px) 50%, calc(100% - 14px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 36px;
+}
+select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* Pet list */
 .petrow { display: flex; align-items: center; gap: 14px; }
 .petrow .avatar {

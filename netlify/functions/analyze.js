@@ -135,8 +135,9 @@ exports.handler = async (event) => {
   }
 
   const system = pet && pet.name
-    ? `${SYSTEM_PROMPT}\n\nThe pet is called ${pet.name}${pet.species ? `, a ${pet.species}` : ""}. ` +
-      `Refer to ${pet.name} by name throughout.`
+    ? `${SYSTEM_PROMPT}\n\nThe pet is called ${pet.name}${describe(pet)}. Refer to ${pet.name} by ` +
+      `name throughout. Their breed is background only — base every observation on the logged ` +
+      `records, never on breed generalizations.`
     : SYSTEM_PROMPT;
 
   const analysis = analyze(records);
@@ -174,6 +175,12 @@ exports.handler = async (event) => {
     return json(502, { error: "Couldn't reach the assistant.", detail: String(err) });
   }
 };
+
+// "Ame, a Labrador Retriever dog" / "Ame, a dog" / "Ame"
+function describe(pet) {
+  const kind = [pet.breed, pet.species].filter(Boolean).join(" ").trim();
+  return kind ? `, a ${kind}` : "";
+}
 
 function json(statusCode, obj) {
   return { statusCode, headers: { "content-type": "application/json" }, body: JSON.stringify(obj) };

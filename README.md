@@ -73,18 +73,33 @@ it **never** suggests diagnoses.
 
 ## Web app (Netlify)
 
-The same logging experience runs in the browser, with no install for the user.
-It is a static page plus one serverless function:
+All three tools run in the browser, with no install for the user — a small
+static site plus three serverless functions. They share **one** log, stored
+privately in the visitor's browser (`localStorage`), with a "Download log (JSON)"
+button on every page.
 
-- `public/index.html` — a warm chat UI (the follow-up-one-at-a-time flow).
-- `netlify/functions/chat.js` — calls Claude with a forced tool for clean
-  structured output. **Your Anthropic API key lives here as an environment
-  variable and is never sent to the browser.**
-- `netlify.toml` — publishes `public/` and wires up the function. No build step.
+Pages (`public/`):
 
-Entries are saved privately in the visitor's browser (`localStorage`), with a
-"Download log (JSON)" button. There is no shared database, so the log does not
-sync across devices — see the note below to upgrade that.
+- `index.html` — landing page linking to the three tools.
+- `log.html` — the conversational logger (follow-up-one-at-a-time flow).
+- `analyze.html` — turns the log into a warm observer's report you can download
+  as a dated `.txt`.
+- `journal.html` — Ame's Journal: a gentle guided walkthrough with a
+  history-grounded reflection.
+- `shared.css`, `app.js` — shared styling and log helpers.
+
+Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
+environment variable and is never sent to the browser:**
+
+- `chat.js` — logger; calls Claude with a forced tool for clean structured output.
+- `analyze.js` — computes the patterns deterministically (a JS port of
+  `analyze_behavior_log.py`), then has Claude write the narrative report.
+- `reflect.js` — phrases the journal's verified observations warmly; returns
+  nothing if the key/API is unavailable, so the journal falls back gracefully.
+
+`netlify.toml` publishes `public/` and wires up the functions. No build step.
+There is no shared database, so the log does not sync across devices — see the
+note below to upgrade that.
 
 ### Deploying
 

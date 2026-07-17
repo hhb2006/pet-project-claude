@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Log an event · Pet Behavior Journal</title>
+<link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav id="nav"></nav>
+
+  <header class="page">
+    <h1>📝 Log an event</h1>
+    <p>Tell me what your pet did, and I'll help you write it down.</p>
+  </header>
+
+  <div class="card chat">
+    <div class="log" id="log"></div>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="What happened? e.g. my dog barked at the mailman and wouldn't stop" autofocus></textarea>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </div>
+
+  <div class="footerbar">
+    <span id="count">0 entries saved on this device</span>
+    <span>
+      <a onclick="downloadJSON()">Download log (JSON)</a> &nbsp;·&nbsp;
+      <a id="reset">Start a new entry</a>
+    </span>
+  </div>
+  <p class="note">A gentle record of what you observed — never a diagnosis.</p>
+</div>
+
+<script src="/app.js"></script>
+<script>
+  const logEl = document.getElementById("log");
+  const form = document.getElementById("composer");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const countEl = document.getElementById("count");
+
+  let messages = [];
+  let lastQuestion = null;
+  let finished = false;
+
+  function refreshCount() {
+    const n = entryCount();
+    countEl.textContent = `${n} ${n === 1 ? "entry" : "entries"} saved on this device`;
+  }
+
+  function bubble(text, cls) {
+    const div = document.createElement("div");
+    div.className = "msg " + cls;
+    div.textContent = text;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+    return div;
+  }
+
+  function typing(on) {
+    let t = document.getElementById("typing");
+    if (on && !t) {
+      t = document.createElement("div");
+      t.id = "typing"; t.className = "typing"; t.textContent = "thinking…";
+      logEl.appendChild(t); logEl.scrollTop = logEl.scrollHeight;
+    } else if (!on && t) { t.remove(); }
+  }
+
+  function showSummary(r) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg summary";
+    wrap.innerHTML = `
+      <h3>Here's what I've got written down 🐾</h3>
+      <dl>
+        <dt>Behavior</dt><dd>${fmt(r.behavior_type)}</dd>
+        <dt>Possible trigger</dt><dd>${fmt(r.trigger)}</dd>
+        <dt>When</dt><dd>${fmt(r.timestamp)}</dd>
+        <dt>Duration</dt><dd>${fmt(r.duration)}</dd>
+        <dt>Intensity (1–10)</dt><dd>${fmt(r.intensity)}</dd>
+        <dt>Recovery period</dt><dd>${fmt(r.recovery_period)}</dd>
+      </dl>`;
+    logEl.appendChild(wrap);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function persist(r) {
+    addEntry({
+      logged_at: new Date().toISOString(),
+      behavior_type: r.behavior_type ?? null,
+      trigger: r.trigger ?? null,
+      timestamp: r.timestamp ?? null,
+      duration: r.duration ?? null,
+      intensity: r.intensity ?? null,
+      recovery_period: r.recovery_period ?? null,
+      time_of_day: null,
+    });
+    refreshCount();
+  }
+
+  async function callAssistant() {
+    typing(true); sendBtn.disabled = true;
+    try {
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+      const data = await res.json();
+      typing(false);
+      if (!res.ok) { bubble(data.error || "Something went wrong. Please try again.", "assistant").classList.add("error"); return; }
+      handleRecord(data);
+    } catch {
+      typing(false);
+      bubble("I couldn't reach the assistant just now. Please try again.", "assistant").classList.add("error");
+    } finally { sendBtn.disabled = false; }
+  }
+
+  function handleRecord(r) {
+    if (!r.complete && r.next_question) {
+      lastQuestion = r.next_question;
+      bubble(r.next_question, "assistant");
+    } else {
+      showSummary(r);
+      persist(r);
+      bubble("Saved! Thank you for taking the time. When you're ready, you can start a new entry below. 🐾", "assistant");
+      finished = true;
+      input.placeholder = "Start a new entry…";
+    }
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
+    if (finished) resetConversation();
+    bubble(text, "user");
+    if (lastQuestion) { messages.push({ role: "assistant", content: lastQuestion }); lastQuestion = null; }
+    messages.push({ role: "user", content: text });
+    input.value = ""; input.style.height = "auto";
+    callAssistant();
+  });
+
+  input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = input.scrollHeight + "px"; });
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); } });
+
+  function resetConversation() {
+    messages = []; lastQuestion = null; finished = false;
+    logEl.innerHTML = ""; input.placeholder = "What happened?";
+    bubble("Tell me about something your pet did.", "assistant");
+  }
+  document.getElementById("reset").addEventListener("click", resetConversation);
+
+  bubble("Hi! Tell me about something your pet did, and I'll help you log it. 🐾", "assistant");
+  refreshCount();
+</script>
+</body>
+</html>

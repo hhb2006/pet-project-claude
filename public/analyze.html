@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Analyze · Pet Behavior Journal</title>
+<link rel="stylesheet" href="/shared.css" />
+</head>
+<body>
+<div class="wrap">
+  <nav id="nav"></nav>
+
+  <header class="page">
+    <h1>🔍 Analyze the history</h1>
+    <p>A thoughtful observer's report drawn from everything you've logged.</p>
+  </header>
+
+  <div class="card">
+    <div id="intro" class="step">
+      <h3>Ready when you are.</h3>
+      <p class="hint" id="ready"></p>
+      <div class="rowbtns">
+        <button id="run">Create report</button>
+        <a href="/log.html"><button type="button" class="ghost">Log more first</button></a>
+      </div>
+    </div>
+    <div id="output" style="display:none">
+      <div id="flags"></div>
+      <div class="report" id="report"></div>
+    </div>
+  </div>
+
+  <div class="footerbar">
+    <span id="count">0 entries saved on this device</span>
+    <span><a id="download" style="display:none">Download report (.txt)</a></span>
+  </div>
+  <p class="note">An observational summary of what was recorded — not a medical document.</p>
+</div>
+
+<script src="/app.js"></script>
+<script>
+  const countEl = document.getElementById("count");
+  const readyEl = document.getElementById("ready");
+  const runBtn = document.getElementById("run");
+  let reportText = "";
+
+  function refresh() {
+    const n = entryCount();
+    countEl.textContent = `${n} ${n === 1 ? "entry" : "entries"} saved on this device`;
+    readyEl.textContent = n === 0
+      ? "No entries yet — log a few events and come back."
+      : `Ready to analyze your ${n} logged ${n === 1 ? "entry" : "entries"}.`;
+    runBtn.disabled = n === 0;
+  }
+
+  function buildReport(meta, body) {
+    const dr = meta.date_range;
+    let span = "";
+    if (dr.first && dr.last) span = `Entries span ${dr.first.slice(0,10)} to ${dr.last.slice(0,10)}.\n`;
+    const header =
+      "PET BEHAVIOR OBSERVER'S REPORT\n" +
+      `Generated ${new Date().toLocaleDateString(undefined, { year:"numeric", month:"long", day:"numeric" })}\n` +
+      `Based on ${meta.record_count} logged ${meta.record_count === 1 ? "entry" : "entries"}.\n` +
+      span +
+      "An observational summary of what was recorded — not a medical document.\n" +
+      "=".repeat(70) + "\n\n";
+    return header + body + "\n";
+  }
+
+  runBtn.addEventListener("click", async () => {
+    runBtn.disabled = true;
+    runBtn.textContent = "Thinking…";
+    try {
+      const res = await fetch("/.netlify/functions/analyze", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ records: loadLog() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        document.getElementById("output").style.display = "block";
+        document.getElementById("report").textContent = data.error || "Something went wrong.";
+        document.getElementById("report").classList.add("error");
+        return;
+      }
+      reportText = buildReport(data, data.report_body);
+
+      if (data.flags && data.flags.length) {
+        document.getElementById("flags").innerHTML =
+          `<div class="flags"><h4>Patterns noticed</h4><ul>` +
+          data.flags.map(f => `<li>${f.replace(/</g, "&lt;")}</li>`).join("") + `</ul></div>`;
+      }
+      document.getElementById("report").textContent = reportText;
+      document.getElementById("output").style.display = "block";
+      document.getElementById("intro").style.display = "none";
+
+      const dl = document.getElementById("download");
+      dl.style.display = "inline";
+      dl.onclick = () => {
+        const blob = new Blob([reportText], { type: "text/plain" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `pet_behavior_report_${new Date().toISOString().slice(0,10)}.txt`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      };
+    } catch {
+      document.getElementById("output").style.display = "block";
+      document.getElementById("report").textContent = "Couldn't reach the assistant. Please try again.";
+      document.getElementById("report").classList.add("error");
+    } finally {
+      runBtn.textContent = "Create report";
+      runBtn.disabled = false;
+    }
+  });
+
+  refresh();
+</script>
+</body>
+</html>

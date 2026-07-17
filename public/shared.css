@@ -152,10 +152,21 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 }
 .subtabs button.active { background: var(--accent-soft); color: var(--accent); }
 
-/* Ask-or-log choice */
-.choice { display: flex; gap: 8px; padding: 0 14px 14px; }
-.choice button { flex: 1; }
-.choicehint { color: var(--muted); font-size: 0.82rem; padding: 0 16px 10px; text-align: center; }
+/* Chat session bar */
+.sessionbar { display: flex; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.sessionbar select { flex: 1; min-width: 0; padding: 8px 12px; padding-right: 32px; font-size: 0.9rem; }
+.sessionbar button { padding: 8px 12px; font-size: 0.86rem; white-space: nowrap; }
+
+/* Per-message "add to log" decision */
+.usergroup { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.msgactions { font-size: 0.78rem; padding-right: 4px; }
+.linkbtn {
+  background: none; border: none; padding: 0; font: inherit; font-size: 0.78rem;
+  color: var(--accent); cursor: pointer; text-decoration: underline;
+}
+.linkbtn:hover { opacity: 0.8; }
+.logged { color: var(--muted); }
+.choicehint { color: var(--muted); font-size: 0.82rem; padding: 0 16px 12px; text-align: center; }
 .msg.advice { background: transparent; border: 1px solid var(--line); align-self: stretch; max-width: 100%; }
 .pill {
   display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;

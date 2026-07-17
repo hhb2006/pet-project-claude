@@ -8,9 +8,11 @@
 //                 duration, intensity, recovery_period, time_of_day }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
 //   attachments { id, pet_id, name, type, size, blob, created_at }
+//   sessions    { id, pet_id, title, created_at, updated_at }
+//   messages    { id, session_id, pet_id, role, kind, content, entry_id, created_at }
 
 const DB_NAME = "pet_journal";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 let _dbPromise = null;
 
 function openDB() {
@@ -22,11 +24,17 @@ function openDB() {
       if (!db.objectStoreNames.contains("pets")) {
         db.createObjectStore("pets", { keyPath: "id" });
       }
-      for (const name of ["entries", "documents", "attachments"]) {
+      for (const name of ["entries", "documents", "attachments", "sessions"]) {
         if (!db.objectStoreNames.contains(name)) {
           const store = db.createObjectStore(name, { keyPath: "id" });
           store.createIndex("pet_id", "pet_id", { unique: false });
         }
+      }
+      // Messages are looked up by session (to render a chat) and by pet (to clean up).
+      if (!db.objectStoreNames.contains("messages")) {
+        const store = db.createObjectStore("messages", { keyPath: "id" });
+        store.createIndex("pet_id", "pet_id", { unique: false });
+        store.createIndex("session_id", "session_id", { unique: false });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -54,10 +62,10 @@ function uid() {
     : Date.now().toString(36) + Math.random().toString(36).slice(2));
 }
 
-function byIndex(store, petId) {
+function byIndex(store, value, indexName = "pet_id") {
   return openDB().then(db => new Promise((resolve, reject) => {
     const t = db.transaction(store, "readonly");
-    const req = t.objectStore(store).index("pet_id").getAll(petId);
+    const req = t.objectStore(store).index(indexName).getAll(value);
     req.onsuccess = () => resolve(req.result || []);
     req.onerror = () => reject(req.error);
   }));
@@ -81,7 +89,7 @@ async function createPet({ name, species, breed, owner }) {
 async function updatePet(pet) { await tx("pets", "readwrite", s => s.put(pet)); return pet; }
 async function deletePet(id) {
   // Remove the pet and everything belonging to it.
-  for (const store of ["entries", "documents", "attachments"]) {
+  for (const store of ["entries", "documents", "attachments", "sessions", "messages"]) {
     const rows = await byIndex(store, id);
     await tx(store, "readwrite", s => rows.forEach(r => s.delete(r.id)));
   }
@@ -109,6 +117,51 @@ async function addEntry(petId, record) {
   return entry;
 }
 async function deleteEntry(id) { await tx("entries", "readwrite", s => s.delete(id)); }
+
+// ── Chat sessions ───────────────────────────────────────────────────────────
+async function listSessions(petId) {
+  const rows = await byIndex("sessions", petId);
+  return rows.sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+}
+async function getSession(id) { return tx("sessions", "readonly", s => reqOf(s.get(id))); }
+async function createSession(petId, title = "New chat") {
+  const now = new Date().toISOString();
+  const session = { id: uid(), pet_id: petId, title, created_at: now, updated_at: now };
+  await tx("sessions", "readwrite", s => s.put(session));
+  return session;
+}
+async function touchSession(session, patch = {}) {
+  const next = { ...session, ...patch, updated_at: new Date().toISOString() };
+  await tx("sessions", "readwrite", s => s.put(next));
+  return next;
+}
+async function deleteSession(id) {
+  const msgs = await byIndex("messages", id, "session_id");
+  await tx("messages", "readwrite", s => msgs.forEach(m => s.delete(m.id)));
+  await tx("sessions", "readwrite", s => s.delete(id));
+}
+
+// ── Chat messages ───────────────────────────────────────────────────────────
+async function listMessages(sessionId) {
+  const rows = await byIndex("messages", sessionId, "session_id");
+  return rows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+}
+// kind: "advice" (free chat) | "log" (the logging follow-up flow) | "summary"
+async function addMessage(sessionId, petId, { role, kind, content, entry_id = null }) {
+  const msg = {
+    id: uid(), session_id: sessionId, pet_id: petId, role, kind, content,
+    entry_id, created_at: new Date().toISOString(),
+  };
+  await tx("messages", "readwrite", s => s.put(msg));
+  return msg;
+}
+async function markMessageLogged(msgId, entryId) {
+  const msg = await tx("messages", "readonly", s => reqOf(s.get(msgId)));
+  if (!msg) return null;
+  const next = { ...msg, entry_id: entryId };
+  await tx("messages", "readwrite", s => s.put(next));
+  return next;
+}
 
 // ── Documents (saved reports + your own notes) ───────────────────────────────
 async function listDocuments(petId) {

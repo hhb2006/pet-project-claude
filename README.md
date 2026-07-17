@@ -81,15 +81,18 @@ Pages (`public/`):
 
 - `index.html` — your pets. Create one, see its entry/document counts, open it.
 - `pet.html?id=…` — a pet's workspace, with three tabs:
-  - **Log** — describe what happened, then choose per behavior:
-    **"Just ask for advice"** (help, nothing saved) or **"Add to log"** (the
-    follow-up-one-at-a-time flow that records a structured entry). After advice
-    you can still add it to the log.
+  - **Chat** — talk freely about your pet, in saved sessions you can revisit
+    (with a "＋ New chat" for a fresh topic, like any LLM chat app). Chat is
+    advice by default and **nothing is saved to the log unless you say so**:
+    every message you send carries its own **"＋ Add to log"** action, which
+    starts the follow-up-one-at-a-time flow and records a structured entry,
+    then marks the message "✓ Added to log".
   - **Documents** — write notes (vet visits, medication, diet), attach files
     (photos, paperwork), and keep saved reports.
   - **Analyze** — a report on the pet's **history and where things stand now**,
     savable to Documents or downloadable as `.txt`.
-- `db.js` — the local data layer. `shared.css`, `app.js` — styling and helpers.
+- `db.js` — the local data layer (pets, entries, documents, attachments, chat
+  sessions and messages). `shared.css`, `app.js` — styling and helpers.
 
 Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**

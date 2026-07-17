@@ -17,23 +17,25 @@
 
   <div class="card">
     <div class="subtabs">
-      <button data-tab="log" class="active">Log</button>
+      <button data-tab="chat" class="active">Chat</button>
       <button data-tab="docs">Documents</button>
       <button data-tab="analyze">Analyze</button>
     </div>
 
-    <!-- ── LOG ─────────────────────────────────────────────────────── -->
-    <div id="tab-log">
+    <!-- ── CHAT ────────────────────────────────────────────────────── -->
+    <div id="tab-chat">
+      <div class="sessionbar">
+        <select id="sessionSel" title="Your chats"></select>
+        <button type="button" class="ghost" id="newChat">＋ New chat</button>
+        <button type="button" class="ghost" id="delChat" title="Delete this chat">🗑</button>
+      </div>
       <div class="chat">
         <div class="log" id="chatlog"></div>
         <form class="composer" id="composer">
           <textarea id="input" rows="1" placeholder="What happened?" autofocus></textarea>
+          <button type="submit" id="send">Send</button>
         </form>
-        <div class="choice">
-          <button type="button" id="askBtn" class="ghost">Just ask for advice</button>
-          <button type="button" id="logBtn">Add to log</button>
-        </div>
-        <p class="choicehint" id="choicehint">Advice isn't saved. "Add to log" records it in the journal.</p>
+        <p class="choicehint" id="choicehint"></p>
       </div>
     </div>
 
@@ -91,7 +93,7 @@
     btn.addEventListener("click", () => {
       document.querySelectorAll(".subtabs button").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
-      for (const t of ["log", "docs", "analyze"]) {
+      for (const t of ["chat", "docs", "analyze"]) {
         document.getElementById("tab-" + t).style.display = (t === btn.dataset.tab) ? "block" : "none";
       }
       if (btn.dataset.tab === "docs") renderDocs();
@@ -99,17 +101,74 @@
     });
   });
 
-  // ── Chat plumbing ───────────────────────────────────────────────────
+  // ── Chat: sessions ──────────────────────────────────────────────────
   const chatlog = document.getElementById("chatlog");
   const input = document.getElementById("input");
-  const askBtn = document.getElementById("askBtn");
-  const logBtn = document.getElementById("logBtn");
+  const sendBtn = document.getElementById("send");
+  const sessionSel = document.getElementById("sessionSel");
+  const hintEl = document.getElementById("choicehint");
 
-  let mode = null;              // "log" | "advice" once chosen
-  let messages = [];            // conversation for whichever backend
-  let lastQuestion = null;
-  let lastDescription = null;   // so an advice chat can still be logged afterwards
-  let finished = false;
+  let session = null;
+  // While a logging flow is running, replies route to the logger instead of advice.
+  let pendingLog = null;   // { sourceMsgId, messages: [...], lastQuestion }
+
+  async function refreshSessions(selectId) {
+    const sessions = await listSessions(petId);
+    sessionSel.innerHTML = "";
+    for (const s of sessions) {
+      const o = document.createElement("option");
+      o.value = s.id;
+      o.textContent = `${s.title}  ·  ${shortDate(s.updated_at)}`;
+      sessionSel.appendChild(o);
+    }
+    if (selectId) sessionSel.value = selectId;
+    sessionSel.style.display = sessions.length ? "block" : "none";
+    return sessions;
+  }
+
+  async function openSession(id) {
+    session = await getSession(id);
+    pendingLog = null;
+    sessionSel.value = id;
+    chatlog.innerHTML = "";
+    const msgs = await listMessages(id);
+    if (!msgs.length) greet();
+    for (const m of msgs) renderStored(m);
+    setHint();
+    chatlog.scrollTop = chatlog.scrollHeight;
+  }
+
+  async function newSession() {
+    const s = await createSession(petId);
+    await refreshSessions(s.id);
+    await openSession(s.id);
+    input.focus();
+  }
+
+  sessionSel.addEventListener("change", () => openSession(sessionSel.value));
+  document.getElementById("newChat").addEventListener("click", newSession);
+  document.getElementById("delChat").addEventListener("click", async () => {
+    if (!session) return;
+    if (!confirm(`Delete this chat? Anything already added to ${pet.name}'s log stays.`)) return;
+    await deleteSession(session.id);
+    const rest = await refreshSessions();
+    if (rest.length) await openSession(rest[0].id); else await newSession();
+  });
+
+  // ── Rendering ───────────────────────────────────────────────────────
+  function greet() {
+    const d = document.createElement("div");
+    d.className = "msg assistant";
+    d.textContent = `Tell me about ${pet.name} — ask me anything, or describe something they did. ` +
+      `You can add any message to the log afterwards.`;
+    chatlog.appendChild(d);
+  }
+
+  function renderStored(m) {
+    if (m.kind === "summary") return renderSummary(JSON.parse(m.content));
+    if (m.role === "user") return renderUser(m);
+    return m.kind === "log" ? bubble(m.content, "assistant") : adviceBubble(m.content);
+  }
 
   function bubble(text, cls) {
     const d = document.createElement("div");
@@ -119,6 +178,7 @@
     chatlog.scrollTop = chatlog.scrollHeight;
     return d;
   }
+
   function adviceBubble(text) {
     const d = document.createElement("div");
     d.className = "msg advice";
@@ -131,114 +191,34 @@
     chatlog.scrollTop = chatlog.scrollHeight;
     return d;
   }
-  function typing(on) {
-    let t = document.getElementById("typing");
-    if (on && !t) {
-      t = document.createElement("div");
-      t.id = "typing"; t.className = "typing"; t.textContent = "thinking…";
-      chatlog.appendChild(t); chatlog.scrollTop = chatlog.scrollHeight;
-    } else if (!on && t) t.remove();
-  }
-  function busy(on) { askBtn.disabled = on; logBtn.disabled = on; }
 
-  function currentText() { return input.value.trim(); }
-  function consumeInput() {
-    const t = currentText();
-    input.value = ""; input.style.height = "auto";
-    return t;
-  }
-
-  // ── "Just ask" path — advice, never saved ───────────────────────────
-  askBtn.addEventListener("click", async () => {
-    const text = consumeInput();
-    if (!text) { input.focus(); return; }
-    if (mode === "log" && !finished) resetChat();
-    mode = "advice";
-    if (!lastDescription) lastDescription = text;
-    bubble(text, "user");
-    messages.push({ role: "user", content: text });
-    setHint();
-    await callAdvise();
-  });
-
-  async function callAdvise() {
-    typing(true); busy(true);
-    try {
-      const res = await fetch("/.netlify/functions/advise", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages, pet: petContext() }),
-      });
-      const data = await res.json();
-      typing(false);
-      if (!res.ok) { bubble(data.error || "Something went wrong.", "assistant").classList.add("error"); return; }
-      adviceBubble(data.reply);
-      messages.push({ role: "assistant", content: data.reply });
-      offerToLog();
-    } catch {
-      typing(false);
-      bubble("I couldn't reach the assistant just now. Please try again.", "assistant").classList.add("error");
-    } finally { busy(false); }
-  }
-
-  function offerToLog() {
-    if (document.getElementById("convert")) return;
+  // Every message you send carries its own "add to log" decision.
+  function renderUser(m) {
     const wrap = document.createElement("div");
-    wrap.id = "convert";
-    wrap.className = "choicehint";
-    wrap.innerHTML = `Want this written down too? <a id="convertLink" style="color:var(--accent);cursor:pointer">Add it to ${esc(pet.name)}'s log</a>`;
-    chatlog.appendChild(wrap);
-    document.getElementById("convertLink").addEventListener("click", () => {
-      wrap.remove();
-      startLogFrom(lastDescription);
-    });
-  }
+    wrap.className = "usergroup";
+    wrap.dataset.msgId = m.id;
+    const d = document.createElement("div");
+    d.className = "msg user";
+    d.textContent = m.content;
+    wrap.appendChild(d);
 
-  // ── "Add to log" path — the structured logging flow ──────────────────
-  logBtn.addEventListener("click", async () => {
-    const text = consumeInput();
-    if (!text) { input.focus(); return; }
-    if (mode === "advice") { startLogFrom(text); return; }
-    mode = "log";
-    if (finished) resetChat();
-    bubble(text, "user");
-    if (lastQuestion) { messages.push({ role: "assistant", content: lastQuestion }); lastQuestion = null; }
-    messages.push({ role: "user", content: text });
-    setHint();
-    await callChat();
-  });
-
-  function startLogFrom(description) {
-    mode = "log";
-    messages = [{ role: "user", content: description }];
-    lastQuestion = null; finished = false;
-    bubble(`Let's write that down for ${pet.name}.`, "assistant");
-    setHint();
-    callChat();
-  }
-
-  async function callChat() {
-    typing(true); busy(true);
-    try {
-      const res = await fetch("/.netlify/functions/chat", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages }),
-      });
-      const data = await res.json();
-      typing(false);
-      if (!res.ok) { bubble(data.error || "Something went wrong.", "assistant").classList.add("error"); return; }
-      handleRecord(data);
-    } catch {
-      typing(false);
-      bubble("I couldn't reach the assistant just now. Please try again.", "assistant").classList.add("error");
-    } finally { busy(false); }
-  }
-
-  async function handleRecord(r) {
-    if (!r.complete && r.next_question) {
-      lastQuestion = r.next_question;
-      bubble(r.next_question, "assistant");
-      return;
+    const act = document.createElement("div");
+    act.className = "msgactions";
+    if (m.entry_id) {
+      act.innerHTML = `<span class="logged">✓ Added to log</span>`;
+    } else if (m.kind === "advice") {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "linkbtn"; b.textContent = "＋ Add to log";
+      b.onclick = () => startLogFrom(m);
+      act.appendChild(b);
     }
+    wrap.appendChild(act);
+    chatlog.appendChild(wrap);
+    chatlog.scrollTop = chatlog.scrollHeight;
+    return wrap;
+  }
+
+  function renderSummary(r) {
     const wrap = document.createElement("div");
     wrap.className = "msg summary";
     wrap.innerHTML = `
@@ -252,35 +232,131 @@
         <dt>Recovery period</dt><dd>${esc(fmt(r.recovery_period))}</dd>
       </dl>`;
     chatlog.appendChild(wrap);
-    await addEntry(petId, r);
-    bubble("Saved. Thank you for taking the time. 🐾", "assistant");
-    finished = true;
-    await refreshMeta();
+    chatlog.scrollTop = chatlog.scrollHeight;
   }
 
-  function resetChat() {
-    messages = []; lastQuestion = null; finished = false; lastDescription = null; mode = null;
-    chatlog.innerHTML = "";
-    greet();
-    setHint();
+  function typing(on) {
+    let t = document.getElementById("typing");
+    if (on && !t) {
+      t = document.createElement("div");
+      t.id = "typing"; t.className = "typing"; t.textContent = "thinking…";
+      chatlog.appendChild(t); chatlog.scrollTop = chatlog.scrollHeight;
+    } else if (!on && t) t.remove();
   }
+  function busy(on) { sendBtn.disabled = on; }
   function setHint() {
-    const h = document.getElementById("choicehint");
-    h.textContent = mode === "advice"
-      ? "You're getting advice — nothing here is saved unless you add it to the log."
-      : mode === "log"
-      ? "You're logging this event."
-      : "Advice isn't saved. \"Add to log\" records it in the journal.";
+    hintEl.innerHTML = pendingLog
+      ? `Writing this down for ${esc(pet.name)} — answer the questions above. ` +
+        `<a id="cancelLog" class="linkbtn">Cancel</a>`
+      : `Chat freely — nothing is saved to the log unless you add it.`;
+    const c = document.getElementById("cancelLog");
+    if (c) c.onclick = async () => {
+      pendingLog = null;
+      await say("assistant", "log", "No problem — I've left that out of the log.");
+      setHint();
+    };
   }
-  function greet() {
-    bubble(`Tell me what ${pet.name} did. Then choose: ask for advice, or write it down.`, "assistant");
+
+  async function say(role, kind, content, entry_id = null) {
+    const m = await addMessage(session.id, petId, { role, kind, content, entry_id });
+    renderStored(m);
+    return m;
+  }
+
+  // ── Sending ─────────────────────────────────────────────────────────
+  document.getElementById("composer").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
+    input.value = ""; input.style.height = "auto";
+
+    if (!session) await newSession();
+    if (session.title === "New chat") {
+      session = await touchSession(session, { title: text.slice(0, 40) + (text.length > 40 ? "…" : "") });
+      await refreshSessions(session.id);
+    } else {
+      session = await touchSession(session);
+    }
+
+    if (pendingLog) {
+      // This answer belongs to the logging follow-up flow.
+      await say("user", "log", text);
+      if (pendingLog.lastQuestion) {
+        pendingLog.messages.push({ role: "assistant", content: pendingLog.lastQuestion });
+        pendingLog.lastQuestion = null;
+      }
+      pendingLog.messages.push({ role: "user", content: text });
+      await runLogger();
+    } else {
+      await say("user", "advice", text);
+      await runAdvice();
+    }
+  });
+
+  async function runAdvice() {
+    typing(true); busy(true);
+    try {
+      // Keep the advice thread coherent: don't feed it the logging Q&A.
+      const history = (await listMessages(session.id))
+        .filter(m => m.kind === "advice")
+        .map(m => ({ role: m.role, content: m.content }));
+      const res = await fetch("/.netlify/functions/advise", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages: history, pet: petContext() }),
+      });
+      const data = await res.json();
+      typing(false);
+      if (!res.ok) { bubble(data.error || "Something went wrong.", "assistant").classList.add("error"); return; }
+      await say("assistant", "advice", data.reply);
+    } catch {
+      typing(false);
+      bubble("I couldn't reach the assistant just now. Please try again.", "assistant").classList.add("error");
+    } finally { busy(false); }
+  }
+
+  async function startLogFrom(sourceMsg) {
+    pendingLog = { sourceMsgId: sourceMsg.id, messages: [{ role: "user", content: sourceMsg.content }], lastQuestion: null };
+    await say("assistant", "log", `Let's write that down for ${pet.name}.`);
+    setHint();
+    await runLogger();
+  }
+
+  async function runLogger() {
+    typing(true); busy(true);
+    try {
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages: pendingLog.messages }),
+      });
+      const data = await res.json();
+      typing(false);
+      if (!res.ok) { bubble(data.error || "Something went wrong.", "assistant").classList.add("error"); return; }
+
+      if (!data.complete && data.next_question) {
+        pendingLog.lastQuestion = data.next_question;
+        await say("assistant", "log", data.next_question);
+        return;
+      }
+      const entry = await addEntry(petId, data);
+      await addMessage(session.id, petId, { role: "assistant", kind: "summary", content: JSON.stringify(data), entry_id: entry.id });
+      renderSummary(data);
+      // Mark the original message so the decision is visible and can't be repeated.
+      await markMessageLogged(pendingLog.sourceMsgId, entry.id);
+      const group = chatlog.querySelector(`[data-msg-id="${pendingLog.sourceMsgId}"] .msgactions`);
+      if (group) group.innerHTML = `<span class="logged">✓ Added to log</span>`;
+      pendingLog = null;
+      setHint();
+      await refreshMeta();
+    } catch {
+      typing(false);
+      bubble("I couldn't reach the assistant just now. Please try again.", "assistant").classList.add("error");
+    } finally { busy(false); }
   }
 
   input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = input.scrollHeight + "px"; });
   input.addEventListener("keydown", e => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); (mode === "advice" ? askBtn : logBtn).click(); }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); document.getElementById("composer").requestSubmit(); }
   });
-  document.getElementById("composer").addEventListener("submit", e => e.preventDefault());
 
   // ── Documents ───────────────────────────────────────────────────────
   async function renderDocs() {
@@ -425,9 +501,13 @@
     if (!pet) { location.href = "/index.html"; return; }
     document.title = `${pet.name} · Behavior Journal`;
     document.getElementById("petname").textContent = pet.name;
+    input.placeholder = `Ask about ${pet.name}, or describe what they did…`;
     await refreshMeta();
-    greet();
-    input.placeholder = `What did ${pet.name} do?`;
+
+    // Pick up where you left off, or start a fresh chat.
+    const sessions = await refreshSessions();
+    if (sessions.length) await openSession(sessions[0].id);
+    else await newSession();
   })();
 </script>
 </body>

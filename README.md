@@ -85,10 +85,10 @@ Pages (`public/`):
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
     (with a "＋ New chat" for a fresh topic, like any LLM chat app). Chat is
     advice by default and **nothing is saved to the log unless you say so**:
-    every message you send carries its own **"＋ Add to log"** action. That
-    saves the entry **immediately** (so it shows up in Log straight away) and
-    marks the message "✓ Added to log"; any follow-up questions then refine
-    that same entry rather than creating another.
+    every message you send carries its own **"＋ Add to log"** action. It's a
+    quiet side-action: no chat messages and no follow-up questions — the entry
+    is extracted and saved straight away, and the link becomes **"✓ Added"**.
+    Whatever the message didn't mention is simply left "not recorded".
   - **Log** — every entry added from chat, newest first, each deletable, plus
     **Create report**: a narrative on the pet's **history and where things
     stand now**, a behavioral profile and questions for your vet — savable to

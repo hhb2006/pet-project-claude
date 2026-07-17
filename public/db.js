@@ -5,7 +5,7 @@
 // Shape:
 //   pets        { id, name, species, breed, owner, created_at }
 //   entries     { id, pet_id, logged_at, behavior_type, trigger, timestamp,
-//                 duration, intensity, recovery_period, time_of_day }
+//                 duration, intensity, recovery_period, time_of_day, edited_at }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
 //   attachments { id, pet_id, name, type, size, blob, created_at }
 //   sessions    { id, pet_id, title, created_at, updated_at }
@@ -116,22 +116,23 @@ async function addEntry(petId, record) {
   await tx("entries", "readwrite", s => s.put(entry));
   return entry;
 }
-// Refine an entry that's already saved. The assistant re-extracts every field
-// each turn, so newer non-null values win, but a field it drops stays put
-// rather than being wiped.
-async function updateEntry(id, record) {
+// Editing an entry by hand replaces the fields exactly as given — a field left
+// blank becomes null ("not recorded"), so the owner can clear something the
+// assistant got wrong, not just add to it.
+async function updateEntry(id, fields) {
   const cur = await tx("entries", "readonly", s => reqOf(s.get(id)));
   if (!cur) return null;
-  const pick = (a, b) => (a === null || a === undefined || a === "") ? b : a;
+  const clean = v => (v === undefined || v === null || String(v).trim() === "") ? null : String(v).trim();
+  const intensity = clean(fields.intensity);
   const next = {
     ...cur,
-    behavior_type: pick(record.behavior_type, cur.behavior_type),
-    trigger: pick(record.trigger, cur.trigger),
-    timestamp: pick(record.timestamp, cur.timestamp),
-    duration: pick(record.duration, cur.duration),
-    intensity: pick(record.intensity, cur.intensity),
-    recovery_period: pick(record.recovery_period, cur.recovery_period),
-    time_of_day: pick(record.time_of_day, cur.time_of_day),
+    behavior_type: clean(fields.behavior_type),
+    trigger: clean(fields.trigger),
+    timestamp: clean(fields.timestamp),
+    duration: clean(fields.duration),
+    intensity: intensity === null ? null : Number(intensity),
+    recovery_period: clean(fields.recovery_period),
+    edited_at: fields.edited_at || new Date().toISOString(),
   };
   await tx("entries", "readwrite", s => s.put(next));
   return next;
@@ -166,7 +167,8 @@ async function listMessages(sessionId) {
   const rows = await byIndex("messages", sessionId, "session_id");
   return rows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 }
-// kind: "advice" (free chat) | "log" (the logging follow-up flow) | "summary"
+// kind: "advice" (free chat). "log"/"summary" are legacy kinds from the older
+// interview-style flow — still rendered so old chats read correctly.
 async function addMessage(sessionId, petId, { role, kind, content, entry_id = null }) {
   const msg = {
     id: uid(), session_id: sessionId, pet_id: petId, role, kind, content,

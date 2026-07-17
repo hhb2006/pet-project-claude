@@ -89,7 +89,9 @@ Pages (`public/`):
     quiet side-action: no chat messages and no follow-up questions — the entry
     is extracted and saved straight away, and the link becomes **"✓ Added"**.
     Whatever the message didn't mention is simply left "not recorded".
-  - **Log** — every entry added from chat, newest first, each deletable, plus
+  - **Log** — every entry added from chat, newest first, each **editable** (fill
+    in what the message didn't mention, or correct it — a blank field records as
+    "not recorded") and deletable, plus
     **Create report**: a narrative on the pet's **history and where things
     stand now**, a behavioral profile and questions for your vet — savable to
     Documents or downloadable as `.txt`. The report is generated from the log,

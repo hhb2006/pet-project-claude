@@ -5,7 +5,7 @@
 // Shape:
 //   pets        { id, name, species, breed, owner, created_at }
 //   entries     { id, pet_id, logged_at, behavior_type, trigger, timestamp,
-//                 duration, intensity, recovery_period, time_of_day }
+//                 duration, intensity, recovery_period, time_of_day, edited_at }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
 //   attachments { id, pet_id, name, type, size, blob, created_at }
 //   sessions    { id, pet_id, title, created_at, updated_at }
@@ -115,6 +115,27 @@ async function addEntry(petId, record) {
   };
   await tx("entries", "readwrite", s => s.put(entry));
   return entry;
+}
+// Editing an entry by hand replaces the fields exactly as given — a field left
+// blank becomes null ("not recorded"), so the owner can clear something the
+// assistant got wrong, not just add to it.
+async function updateEntry(id, fields) {
+  const cur = await tx("entries", "readonly", s => reqOf(s.get(id)));
+  if (!cur) return null;
+  const clean = v => (v === undefined || v === null || String(v).trim() === "") ? null : String(v).trim();
+  const intensity = clean(fields.intensity);
+  const next = {
+    ...cur,
+    behavior_type: clean(fields.behavior_type),
+    trigger: clean(fields.trigger),
+    timestamp: clean(fields.timestamp),
+    duration: clean(fields.duration),
+    intensity: intensity === null ? null : Number(intensity),
+    recovery_period: clean(fields.recovery_period),
+    edited_at: fields.edited_at || new Date().toISOString(),
+  };
+  await tx("entries", "readwrite", s => s.put(next));
+  return next;
 }
 async function deleteEntry(id) { await tx("entries", "readwrite", s => s.delete(id)); }
 

@@ -451,14 +451,18 @@
       item.className = "docitem";
       item.innerHTML = `
         <h4>🐾 ${esc(fmt(e.behavior_type))}</h4>
-        <div class="meta">${fmtDate(e.logged_at)}${e.trigger ? " · " + t("trigger_label") + ": " + esc(e.trigger) : ""}</div>
+        <div class="meta">${fmtDate(e.logged_at)}${e.edited_at ? " · " + t("edited") : ""}${e.trigger ? " · " + t("trigger_label") + ": " + esc(e.trigger) : ""}</div>
         <dl class="entryfields">
           <dt>${t("f_when")}</dt><dd>${esc(fmt(e.timestamp))}</dd>
           <dt>${t("f_duration")}</dt><dd>${esc(fmt(e.duration))}</dd>
           <dt>${t("f_intensity")}</dt><dd>${esc(fmt(e.intensity))}</dd>
           <dt>${t("f_recovery")}</dt><dd>${esc(fmt(e.recovery_period))}</dd>
         </dl>
-        <div class="actions"><button class="ghost del">${t("delete")}</button></div>`;
+        <div class="actions">
+          <button class="ghost edit">${t("edit")}</button>
+          <button class="ghost del">${t("delete")}</button>
+        </div>`;
+      item.querySelector(".edit").onclick = () => editEntry(item, e);
       item.querySelector(".del").onclick = async () => {
         if (!confirm(t("confirm_del_entry"))) return;
         await deleteEntry(e.id);
@@ -467,6 +471,47 @@
       };
       el.appendChild(item);
     }
+  }
+
+  // Revise an entry by hand — the assistant only captures what the message
+  // mentioned, so this is how the blanks get filled in (or mistakes corrected).
+  function editEntry(item, e) {
+    const row = (key, field, type) => `
+      <label class="ffield">
+        <span>${t(key)}</span>
+        <input type="${type}" data-f="${field}" ${type === "number" ? 'min="1" max="10" step="1"' : ""}
+               value="${esc(e[field] ?? "")}" />
+      </label>`;
+    item.innerHTML = `
+      <div class="entryform">
+        ${row("f_behavior", "behavior_type", "text")}
+        ${row("f_trigger", "trigger", "text")}
+        ${row("f_when", "timestamp", "text")}
+        ${row("f_duration", "duration", "text")}
+        ${row("f_intensity", "intensity", "number")}
+        ${row("f_recovery", "recovery_period", "text")}
+      </div>
+      <p class="hint">${t("edit_hint")}</p>
+      <div class="actions">
+        <button class="save">${t("save")}</button>
+        <button class="ghost cancel">${t("cancel")}</button>
+      </div>`;
+
+    item.querySelector(".cancel").onclick = () => renderEntries();
+    item.querySelector(".save").onclick = async () => {
+      const fields = {};
+      item.querySelectorAll("[data-f]").forEach(i => { fields[i.dataset.f] = i.value; });
+
+      const raw = String(fields.intensity ?? "").trim();
+      if (raw !== "" && !(Number.isInteger(Number(raw)) && Number(raw) >= 1 && Number(raw) <= 10)) {
+        alert(t("bad_intensity"));
+        return;
+      }
+      await updateEntry(e.id, { ...fields, edited_at: new Date().toISOString() });
+      await renderEntries();
+      await refreshMeta();
+    };
+    item.querySelector("[data-f]").focus();
   }
 
   document.getElementById("dlLog").addEventListener("click", async () => {

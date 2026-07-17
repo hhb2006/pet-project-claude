@@ -7,8 +7,9 @@ env/
 __pycache__/
 *.py[cod]
 
-# Local behavior log (personal data — not for version control)
-pet_behavior_log.json
+# Local behavior data & generated reports (personal — not for version control)
+*_behavior_log.json
+pet_behavior_report_*.txt
 
 # Environment / secrets
 .env

@@ -49,3 +49,24 @@ Uses the Anthropic Claude API (`claude-opus-4-8`) with Pydantic-typed
 structured outputs. Each turn the model re-reads the whole conversation,
 extracts every field it can, and returns either the single next question to ask
 or a signal that everything has been gathered.
+
+## Analyzing the history
+
+Once you've logged a few events, `analyze_behavior_log.py` reads the whole log
+and produces a thoughtful observer's report:
+
+```bash
+./.venv/bin/python analyze_behavior_log.py
+```
+
+It groups records by behavior type and trigger, computes the factual patterns
+in Python (recurring triggers, intensity and recovery-time trends), then asks
+Claude to write:
+
+- a **plain-English narrative summary** suitable for sharing with a vet or trainer,
+- a **bullet-point behavioral profile** of your pet, and
+- a **"Questions to ask your vet"** section grounded in the observed patterns.
+
+The report is saved as a dated file, e.g. `pet_behavior_report_2026-07-16.txt`.
+Like the logger, it only describes what was observed and any changes over time —
+it **never** suggests diagnoses.

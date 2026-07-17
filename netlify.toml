@@ -1,0 +1,11 @@
+# Netlify configuration for the Pet Behavior Logger web app.
+# Publishes the static site in public/ and runs the serverless function
+# in netlify/functions/. No build step is required.
+
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[build.environment]
+  # Node 18+ is needed for the global fetch() used by the function.
+  NODE_VERSION = "20"

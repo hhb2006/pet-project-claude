@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pet Behavior Logger</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --card: #ffffff;
+    --ink: #2f2a25;
+    --muted: #7a726a;
+    --accent: #3a7d6e;
+    --accent-soft: #e7f1ee;
+    --user: #eef4f2;
+    --line: #ece7df;
+    --shadow: 0 10px 40px rgba(60, 50, 40, 0.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1a18;
+      --card: #262320;
+      --ink: #ece7df;
+      --muted: #a89f95;
+      --accent: #6bbfa9;
+      --accent-soft: #22322e;
+      --user: #2e2a26;
+      --line: #37322d;
+      --shadow: 0 10px 40px rgba(0, 0, 0, 0.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px 40px;
+  }
+  .wrap { width: 100%; max-width: 640px; }
+  header { text-align: center; margin: 12px 0 20px; }
+  header h1 { font-size: 1.5rem; margin: 0 0 4px; font-weight: 650; }
+  header p { margin: 0; color: var(--muted); font-size: 0.95rem; }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 460px;
+  }
+  .log { padding: 20px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; }
+  .msg { max-width: 85%; padding: 11px 15px; border-radius: 16px; white-space: pre-wrap; }
+  .msg.assistant { background: var(--accent-soft); border-bottom-left-radius: 5px; align-self: flex-start; }
+  .msg.user { background: var(--user); border-bottom-right-radius: 5px; align-self: flex-end; }
+  .msg.summary {
+    align-self: stretch; max-width: 100%; background: transparent;
+    border: 1px dashed var(--line); border-radius: 14px; padding: 16px;
+  }
+  .summary h3 { margin: 0 0 10px; font-size: 1rem; }
+  .summary dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; }
+  .summary dt { color: var(--muted); }
+  .summary dd { margin: 0; }
+  .typing { align-self: flex-start; color: var(--muted); font-style: italic; padding: 4px 6px; }
+  .composer { display: flex; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
+  textarea {
+    flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px;
+    padding: 11px 14px; font: inherit; color: inherit; background: var(--bg);
+    max-height: 140px;
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+  button {
+    border: none; border-radius: 12px; padding: 0 18px; font: inherit; font-weight: 600;
+    background: var(--accent); color: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .footerbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 12px; color: var(--muted); font-size: 0.85rem; gap: 12px; flex-wrap: wrap;
+  }
+  .footerbar a { color: var(--accent); cursor: pointer; }
+  .note { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 14px; }
+  .error { color: #b4462f; }
+  @media (prefers-color-scheme: dark) { .error { color: #e8917a; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🐾 Pet Behavior Logger</h1>
+    <p>Tell me what your pet did, and I'll help you write it down.</p>
+  </header>
+
+  <div class="card">
+    <div class="log" id="log"></div>
+    <form class="composer" id="composer">
+      <textarea id="input" rows="1" placeholder="What happened? e.g. my dog barked at the mailman and wouldn't stop" autofocus></textarea>
+      <button type="submit" id="send">Send</button>
+    </form>
+  </div>
+
+  <div class="footerbar">
+    <span id="count">0 entries saved on this device</span>
+    <span>
+      <a id="download">Download log (JSON)</a>
+      &nbsp;·&nbsp;
+      <a id="reset">Start a new entry</a>
+    </span>
+  </div>
+  <p class="note">A gentle record of what you observed — never a diagnosis. Everything is saved privately in your browser.</p>
+</div>
+
+<script>
+  const STORAGE_KEY = "pet_behavior_log";
+  const logEl = document.getElementById("log");
+  const form = document.getElementById("composer");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const countEl = document.getElementById("count");
+
+  let messages = [];       // conversation sent to the API
+  let lastQuestion = null; // assistant's last follow-up, so we can thread the history
+  let finished = false;
+
+  function loadLog() { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; } catch { return []; } }
+  function saveLog(log) { localStorage.setItem(STORAGE_KEY, JSON.stringify(log)); }
+  function refreshCount() {
+    const n = loadLog().length;
+    countEl.textContent = `${n} ${n === 1 ? "entry" : "entries"} saved on this device`;
+  }
+
+  function bubble(text, cls) {
+    const div = document.createElement("div");
+    div.className = "msg " + cls;
+    div.textContent = text;
+    logEl.appendChild(div);
+    logEl.scrollTop = logEl.scrollHeight;
+    return div;
+  }
+
+  function typingIndicator(on) {
+    let t = document.getElementById("typing");
+    if (on && !t) {
+      t = document.createElement("div");
+      t.id = "typing";
+      t.className = "typing";
+      t.textContent = "thinking…";
+      logEl.appendChild(t);
+      logEl.scrollTop = logEl.scrollHeight;
+    } else if (!on && t) {
+      t.remove();
+    }
+  }
+
+  function fmt(v) { return (v === null || v === undefined || v === "") ? "not recorded" : v; }
+
+  function showSummary(record) {
+    const wrap = document.createElement("div");
+    wrap.className = "msg summary";
+    wrap.innerHTML = `
+      <h3>Here's what I've got written down 🐾</h3>
+      <dl>
+        <dt>Behavior</dt><dd>${fmt(record.behavior_type)}</dd>
+        <dt>Possible trigger</dt><dd>${fmt(record.trigger)}</dd>
+        <dt>When</dt><dd>${fmt(record.timestamp)}</dd>
+        <dt>Duration</dt><dd>${fmt(record.duration)}</dd>
+        <dt>Intensity (1–10)</dt><dd>${fmt(record.intensity)}</dd>
+        <dt>Recovery period</dt><dd>${fmt(record.recovery_period)}</dd>
+      </dl>`;
+    logEl.appendChild(wrap);
+    logEl.scrollTop = logEl.scrollHeight;
+  }
+
+  function persist(record) {
+    const entry = {
+      logged_at: new Date().toISOString(),
+      behavior_type: record.behavior_type ?? null,
+      trigger: record.trigger ?? null,
+      timestamp: record.timestamp ?? null,
+      duration: record.duration ?? null,
+      intensity: record.intensity ?? null,
+      recovery_period: record.recovery_period ?? null,
+    };
+    const log = loadLog();
+    log.push(entry);
+    saveLog(log);
+    refreshCount();
+  }
+
+  async function callAssistant() {
+    typingIndicator(true);
+    sendBtn.disabled = true;
+    try {
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+      const data = await res.json();
+      typingIndicator(false);
+      if (!res.ok) {
+        bubble(data.error || "Something went wrong. Please try again.", "assistant");
+        logEl.lastChild.classList.add("error");
+        return;
+      }
+      handleRecord(data);
+    } catch (err) {
+      typingIndicator(false);
+      const b = bubble("I couldn't reach the assistant just now. Please try again.", "assistant");
+      b.classList.add("error");
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  function handleRecord(record) {
+    if (!record.complete && record.next_question) {
+      lastQuestion = record.next_question;
+      bubble(record.next_question, "assistant");
+    } else {
+      showSummary(record);
+      persist(record);
+      bubble("Saved! Thank you for taking the time. When you're ready, you can start a new entry below. 🐾", "assistant");
+      finished = true;
+      input.placeholder = "Start a new entry…";
+    }
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text || sendBtn.disabled) return;
+
+    if (finished) { resetConversation(); }
+
+    bubble(text, "user");
+    if (lastQuestion) {
+      messages.push({ role: "assistant", content: lastQuestion });
+      lastQuestion = null;
+    }
+    messages.push({ role: "user", content: text });
+    input.value = "";
+    input.style.height = "auto";
+    callAssistant();
+  });
+
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = input.scrollHeight + "px";
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  function resetConversation() {
+    messages = [];
+    lastQuestion = null;
+    finished = false;
+    logEl.innerHTML = "";
+    input.placeholder = "What happened?";
+    bubble("Tell me about something your pet did.", "assistant");
+  }
+
+  document.getElementById("reset").addEventListener("click", resetConversation);
+  document.getElementById("download").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(loadLog(), null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "pet_behavior_log.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+
+  // First greeting.
+  bubble("Hi! Tell me about something your pet did, and I'll help you log it. 🐾", "assistant");
+  refreshCount();
+</script>
+</body>
+</html>

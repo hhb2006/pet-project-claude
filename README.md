@@ -70,3 +70,39 @@ Claude to write:
 The report is saved as a dated file, e.g. `pet_behavior_report_2026-07-16.txt`.
 Like the logger, it only describes what was observed and any changes over time —
 it **never** suggests diagnoses.
+
+## Web app (Netlify)
+
+The same logging experience runs in the browser, with no install for the user.
+It is a static page plus one serverless function:
+
+- `public/index.html` — a warm chat UI (the follow-up-one-at-a-time flow).
+- `netlify/functions/chat.js` — calls Claude with a forced tool for clean
+  structured output. **Your Anthropic API key lives here as an environment
+  variable and is never sent to the browser.**
+- `netlify.toml` — publishes `public/` and wires up the function. No build step.
+
+Entries are saved privately in the visitor's browser (`localStorage`), with a
+"Download log (JSON)" button. There is no shared database, so the log does not
+sync across devices — see the note below to upgrade that.
+
+### Deploying
+
+1. Connect this repo to Netlify (Add new site → Import from Git). Leave the build
+   command empty; `netlify.toml` already sets publish dir `public` and the
+   functions dir.
+2. In **Site configuration → Environment variables**, add
+   `ANTHROPIC_API_KEY` = your key.
+3. **Redeploy** (env var changes need a fresh deploy). Open the site — you should
+   see the logger, not a 404.
+
+If you still get a 404, check that the site's build settings in the Netlify UI
+haven't overridden `netlify.toml` (the publish directory must be `public`).
+Without the env var, the page loads but the assistant replies with a message
+asking the owner to set `ANTHROPIC_API_KEY`.
+
+### Making the log sync across devices (optional)
+
+`localStorage` is per-browser. To share one log across devices, move storage into
+the function using [Netlify Blobs](https://docs.netlify.com/blobs/overview/) (or a
+database) and have the function read/write entries instead of the browser.

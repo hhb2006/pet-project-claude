@@ -13,3 +13,7 @@ pet_behavior_report_*.txt
 
 # Environment / secrets
 .env
+
+# Node / Netlify (web app)
+node_modules/
+.netlify/

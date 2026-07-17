@@ -62,7 +62,7 @@
       const last = entries.length ? t("last_logged", { d: fmtDate(entries[entries.length - 1].logged_at) }) : null;
       const tile = document.createElement("div");
       tile.className = "tile";
-      const kind = [pet.breed, pet.species].filter(Boolean).join(" · ");
+      const kind = [pet.breed, speciesDisplay(pet.species)].filter(Boolean).join(" · ");
       tile.innerHTML = `
         <div class="petrow">
           <div class="avatar">${emojiFor(pet.species)}</div>

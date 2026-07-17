@@ -612,7 +612,7 @@
   // ── Boot ────────────────────────────────────────────────────────────
   async function refreshMeta() {
     const [entries, docs] = await Promise.all([listEntries(petId), listDocuments(petId)]);
-    const kind = [pet.breed, pet.species].filter(Boolean).join(" · ");
+    const kind = [pet.breed, speciesDisplay(pet.species)].filter(Boolean).join(" · ");
     document.getElementById("petmeta").textContent =
       `${kind ? kind + " · " : ""}${entries.length} ${entries.length === 1 ? "entry" : "entries"} · ` +
       `${docs.length} ${docs.length === 1 ? "document" : "documents"}`;

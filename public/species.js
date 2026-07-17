@@ -143,6 +143,13 @@ function speciesLabel(s) {
   return (typeof getLang === "function" && getLang() === "zh" && s.zh) ? s.zh : s.label;
 }
 
+// Turns a *stored* species value ("dog") into the label for the current language
+// ("狗"). Species the owner typed themselves are shown back as they typed them.
+function speciesDisplay(value) {
+  const hit = SPECIES.find(s => s.value === String(value || "").toLowerCase());
+  return hit ? speciesLabel(hit).replace(/…$/, "") : (value || "");
+}
+
 function emojiFor(species) {
   const s = (species || "").toLowerCase();
   const hit = SPECIES.find(x => x.value === s);
@@ -244,4 +251,4 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
   };
 }
 
-if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, emojiFor, speciesLabel, MIXED, OTHER };
+if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, emojiFor, speciesLabel, speciesDisplay, MIXED, OTHER };

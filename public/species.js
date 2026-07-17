@@ -6,20 +6,20 @@
 // so nothing is unrecordable.
 
 const SPECIES = [
-  { value: "dog", label: "Dog", emoji: "🐶" },
-  { value: "cat", label: "Cat", emoji: "🐱" },
-  { value: "rabbit", label: "Rabbit", emoji: "🐰" },
-  { value: "guinea pig", label: "Guinea pig", emoji: "🐹" },
-  { value: "hamster", label: "Hamster", emoji: "🐹" },
-  { value: "gerbil", label: "Gerbil", emoji: "🐹" },
-  { value: "rat", label: "Rat", emoji: "🐀" },
-  { value: "mouse", label: "Mouse", emoji: "🐭" },
-  { value: "ferret", label: "Ferret", emoji: "🦦" },
-  { value: "bird", label: "Bird", emoji: "🐦" },
-  { value: "fish", label: "Fish", emoji: "🐠" },
-  { value: "reptile", label: "Reptile", emoji: "🦎" },
-  { value: "horse", label: "Horse", emoji: "🐴" },
-  { value: "other", label: "Other…", emoji: "🐾" },
+  { value: "dog", zh: "狗", label: "Dog", emoji: "🐶" },
+  { value: "cat", zh: "猫", label: "Cat", emoji: "🐱" },
+  { value: "rabbit", zh: "兔子", label: "Rabbit", emoji: "🐰" },
+  { value: "guinea pig", zh: "豚鼠", label: "Guinea pig", emoji: "🐹" },
+  { value: "hamster", zh: "仓鼠", label: "Hamster", emoji: "🐹" },
+  { value: "gerbil", zh: "沙鼠", label: "Gerbil", emoji: "🐹" },
+  { value: "rat", zh: "大鼠", label: "Rat", emoji: "🐀" },
+  { value: "mouse", zh: "小鼠", label: "Mouse", emoji: "🐭" },
+  { value: "ferret", zh: "雪貂", label: "Ferret", emoji: "🦦" },
+  { value: "bird", zh: "鸟", label: "Bird", emoji: "🐦" },
+  { value: "fish", zh: "鱼", label: "Fish", emoji: "🐠" },
+  { value: "reptile", zh: "爬行动物", label: "Reptile", emoji: "🦎" },
+  { value: "horse", zh: "马", label: "Horse", emoji: "🐴" },
+  { value: "other", zh: "其他…", label: "Other…", emoji: "🐾" },
 ];
 
 const MIXED = "Mixed breed / Unknown";
@@ -138,6 +138,11 @@ const BREEDS = Object.fromEntries(
   }).map(([k, v]) => [k, [...v, MIXED, OTHER]])
 );
 
+// The visible label follows the chosen language; the stored value stays English.
+function speciesLabel(s) {
+  return (typeof getLang === "function" && getLang() === "zh" && s.zh) ? s.zh : s.label;
+}
+
 function emojiFor(species) {
   const s = (species || "").toLowerCase();
   const hit = SPECIES.find(x => x.value === s);
@@ -151,11 +156,11 @@ function emojiFor(species) {
 // fallbacks for "Other…". Used by both the create form and the edit form.
 // Returns getters/setters so callers don't repeat the cascade logic.
 function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
-  speciesSel.innerHTML = `<option value="" disabled selected>Species…</option>`;
+  speciesSel.innerHTML = `<option value="" disabled selected>${typeof t === "function" ? t("species_ph") : "Species…"}</option>`;
   for (const s of SPECIES) {
     const o = document.createElement("option");
     o.value = s.value;
-    o.textContent = `${s.emoji}  ${s.label}`;
+    o.textContent = `${s.emoji}  ${speciesLabel(s)}`;
     speciesSel.appendChild(o);
   }
 
@@ -167,12 +172,12 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
       // No curated list for this species — offer a free-text breed instead.
       breedSel.style.display = "none";
       breedSel.innerHTML = "";
-      breedOther.placeholder = "Breed (optional)";
+      breedOther.placeholder = typeof t === "function" ? t("breed_optional_ph") : "Breed (optional)";
       breedOther.style.display = species ? "block" : "none";
       if (selected) breedOther.value = selected;
       return;
     }
-    breedSel.innerHTML = `<option value="" disabled selected>Breed…</option>`;
+    breedSel.innerHTML = `<option value="" disabled selected>${typeof t === "function" ? t("breed_ph") : "Breed…"}</option>`;
     for (const b of breeds) {
       const o = document.createElement("option");
       o.value = b; o.textContent = b;
@@ -185,7 +190,7 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
       } else {
         // A breed typed by hand previously — keep it in the free-text box.
         breedSel.value = OTHER;
-        breedOther.placeholder = "Breed";
+        breedOther.placeholder = typeof t === "function" ? t("breed_free_ph") : "Breed";
         breedOther.value = selected;
         breedOther.style.display = "block";
       }
@@ -201,7 +206,7 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
 
   breedSel.addEventListener("change", () => {
     const isOther = breedSel.value === OTHER;
-    breedOther.placeholder = "Breed";
+    breedOther.placeholder = typeof t === "function" ? t("breed_free_ph") : "Breed";
     breedOther.style.display = isOther ? "block" : "none";
     if (isOther) breedOther.focus();
   });
@@ -239,4 +244,4 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
   };
 }
 
-if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, emojiFor, MIXED, OTHER };
+if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, emojiFor, speciesLabel, MIXED, OTHER };

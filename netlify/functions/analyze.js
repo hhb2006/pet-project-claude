@@ -127,18 +127,19 @@ exports.handler = async (event) => {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return json(500, { error: "The site owner hasn't set ANTHROPIC_API_KEY yet." });
 
-  let records, pet;
-  try { ({ records, pet } = JSON.parse(event.body || "{}")); }
+  let records, pet, lang;
+  try { ({ records, pet, lang } = JSON.parse(event.body || "{}")); }
   catch { return json(400, { error: "Could not read the request." }); }
   if (!Array.isArray(records) || records.length === 0) {
     return json(400, { error: "There are no logged entries to analyze yet. Log a few events first." });
   }
 
-  const system = pet && pet.name
+  const base = pet && pet.name
     ? `${SYSTEM_PROMPT}\n\nThe pet is called ${pet.name}${describe(pet)}. Refer to ${pet.name} by ` +
       `name throughout. Their breed is background only — base every observation on the logged ` +
       `records, never on breed generalizations.`
     : SYSTEM_PROMPT;
+  const system = base + reportLangNote(lang);
 
   const analysis = analyze(records);
   const { records_chronological, ...meta } = analysis;
@@ -175,6 +176,15 @@ exports.handler = async (event) => {
     return json(502, { error: "Couldn't reach the assistant.", detail: String(err) });
   }
 };
+
+// The report is written in the interface language, with matching section headers.
+function reportLangNote(lang) {
+  if (lang !== "zh") return "";
+  return "\n\nIMPORTANT: Write the entire report in Simplified Chinese (简体中文). Use these exact " +
+    "section headers, each on its own line, instead of the English ones above:\n" +
+    "综述\n目前状况\n行为特征\n可以问兽医的问题\n" +
+    "All the rules above still apply — especially never diagnosing.";
+}
 
 // "Ame, a Labrador Retriever dog" / "Ame, a dog" / "Ame"
 function describe(pet) {

@@ -53,17 +53,18 @@ exports.handler = async (event) => {
     });
   }
 
-  let messages, pet;
-  try { ({ messages, pet } = JSON.parse(event.body || "{}")); }
+  let messages, pet, lang;
+  try { ({ messages, pet, lang } = JSON.parse(event.body || "{}")); }
   catch { return json(400, { error: "Could not read the request." }); }
   if (!Array.isArray(messages) || messages.length === 0) {
     return json(400, { error: "No question was provided." });
   }
 
-  const system = pet && pet.name
+  const base = pet && pet.name
     ? `${SYSTEM_PROMPT}\n\nThe pet is called ${pet.name}${describe(pet)}. Refer to ${pet.name} ` +
       `by name. Their breed is background only — never draw conclusions about ${pet.name} from it.`
     : SYSTEM_PROMPT;
+  const system = base + langNote(lang);
 
   try {
     const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -82,6 +83,15 @@ exports.handler = async (event) => {
     return json(502, { error: "Couldn't reach the assistant.", detail: String(err) });
   }
 };
+
+
+// The interface language follows the user's choice; the assistant must match it.
+function langNote(lang) {
+  return lang === "zh"
+    ? "\n\nIMPORTANT: Write every word of your reply in Simplified Chinese (简体中文), " +
+      "including any questions. Keep exactly the same warmth, and all the rules above still apply."
+    : "";
+}
 
 // "Ame, a Labrador Retriever dog" / "Ame, a dog" / "Ame"
 function describe(pet) {

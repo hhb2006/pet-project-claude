@@ -6,37 +6,38 @@
 <title>Pet Behavior Journal</title>
 <link rel="stylesheet" href="/shared.css" />
 </head>
-<body>
+<body data-title-key="app_title">
 <div class="wrap">
+  <div id="langSwitch"></div>
   <header class="page">
-    <h1>🐾 Pet Behavior Journal</h1>
-    <p>A gentle place to notice, record, and understand what your pets do.</p>
+    <h1>🐾 <span data-i18n="app_title"></span></h1>
+    <p data-i18n="app_tagline"></p>
   </header>
 
   <div class="card" style="margin-bottom:16px">
     <div class="step">
-      <h3>Add a pet</h3>
+      <h3 data-i18n="add_pet"></h3>
       <div class="petform">
-        <input type="text" id="name" placeholder="Name (e.g. Ame)" />
+        <input type="text" id="name" data-i18n-ph="name_ph" />
         <select id="species">
           <option value="" disabled selected>Species…</option>
         </select>
-        <input type="text" id="speciesOther" placeholder="What kind of pet?" style="display:none" />
+        <input type="text" id="speciesOther" data-i18n-ph="species_other_ph" style="display:none" />
         <select id="breed" style="display:none"></select>
-        <input type="text" id="breedOther" placeholder="Breed" style="display:none" />
+        <input type="text" id="breedOther" data-i18n-ph="breed_free_ph" style="display:none" />
       </div>
-      <p class="hint">Each pet gets their own log, documents, and reports.</p>
-      <div class="rowbtns"><button id="add">Create</button></div>
+      <p class="hint" data-i18n="pet_hint"></p>
+      <div class="rowbtns"><button id="add" data-i18n="create"></button></div>
     </div>
   </div>
 
   <div class="tiles" id="pets"></div>
 
-  <p class="note">Everything is saved privately in this browser. A record of what you
-     observed — never a diagnosis.</p>
+  <p class="note" data-i18n="privacy_note"></p>
 </div>
 
 <script src="/db.js"></script>
+<script src="/i18n.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
 <script>
@@ -51,15 +52,14 @@
   async function render() {
     const pets = await listPets();
     if (pets.length === 0) {
-      petsEl.innerHTML = `<div class="card"><div class="empty">No pets yet.<br />
-        Add one above to start their journal.</div></div>`;
+      petsEl.innerHTML = `<div class="card"><div class="empty">${t("no_pets")}<br />${t("no_pets_sub")}</div></div>`;
       return;
     }
     petsEl.innerHTML = "";
     for (const pet of pets) {
       const entries = await listEntries(pet.id);
       const docs = await listDocuments(pet.id);
-      const last = entries.length ? new Date(entries[entries.length - 1].logged_at).toLocaleDateString() : null;
+      const last = entries.length ? t("last_logged", { d: fmtDate(entries[entries.length - 1].logged_at) }) : null;
       const tile = document.createElement("div");
       tile.className = "tile";
       const kind = [pet.breed, pet.species].filter(Boolean).join(" · ");
@@ -68,10 +68,9 @@
           <div class="avatar">${emojiFor(pet.species)}</div>
           <div class="grow">
             <h2>${esc(pet.name)}</h2>
-            <p>${kind ? esc(kind) + " · " : ""}${entries.length} ${entries.length === 1 ? "entry" : "entries"}
-               · ${docs.length} ${docs.length === 1 ? "document" : "documents"}${last ? " · last logged " + last : ""}</p>
+            <p>${kind ? esc(kind) + " · " : ""}${nEntries(entries.length)} · ${nDocs(docs.length)}${last ? " · " + last : ""}</p>
           </div>
-          <button class="del" title="Delete ${esc(pet.name)}">Delete</button>
+          <button class="del">${t("delete")}</button>
         </div>`;
       tile.style.cursor = "pointer";
       tile.addEventListener("click", (e) => {
@@ -80,7 +79,7 @@
       });
       tile.querySelector(".del").addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!confirm(`Delete ${pet.name} and everything logged for them? This can't be undone.`)) return;
+        if (!confirm(t("confirm_delete_pet", { name: pet.name }))) return;
         await deletePet(pet.id);
         render();
       });
@@ -90,9 +89,9 @@
 
   document.getElementById("add").addEventListener("click", async () => {
     const name = document.getElementById("name").value.trim();
-    if (!name) { alert("What's your pet called?"); return; }
+    if (!name) { alert(t("ask_name")); return; }
     const species = form.getSpecies();
-    if (!species) { alert("What kind of pet are they?"); return; }
+    if (!species) { alert(t("ask_species")); return; }
     await createPet({ name, species, breed: form.getBreed() });
     document.getElementById("name").value = "";
     form.reset();
@@ -107,7 +106,7 @@
     await render();
     if (migrated) {
       const n = (await listEntries(migrated.id)).length;
-      alert(`Welcome back! Your ${n} existing ${n === 1 ? "entry has" : "entries have"} been moved into a pet called "${migrated.name}". You can rename or delete them any time.`);
+      alert(t("migrated", { n: nEntries(n), name: migrated.name }));
     }
   })();
 </script>

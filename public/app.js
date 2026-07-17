@@ -6,17 +6,16 @@ function esc(s) {
   ));
 }
 
-function fmt(v) { return (v === null || v === undefined || v === "") ? "not recorded" : v; }
+// Falls back to the translated "not recorded" when a field was never captured.
+function fmt(v) {
+  if (v !== null && v !== undefined && v !== "") return v;
+  return typeof t === "function" ? t("not_recorded") : "not recorded";
+}
 
 function fileSize(bytes) {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
-}
-
-function shortDate(iso) {
-  try { return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }); }
-  catch { return iso; }
 }
 
 function download(content, filename, type) {

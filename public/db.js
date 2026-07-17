@@ -116,6 +116,26 @@ async function addEntry(petId, record) {
   await tx("entries", "readwrite", s => s.put(entry));
   return entry;
 }
+// Refine an entry that's already saved. The assistant re-extracts every field
+// each turn, so newer non-null values win, but a field it drops stays put
+// rather than being wiped.
+async function updateEntry(id, record) {
+  const cur = await tx("entries", "readonly", s => reqOf(s.get(id)));
+  if (!cur) return null;
+  const pick = (a, b) => (a === null || a === undefined || a === "") ? b : a;
+  const next = {
+    ...cur,
+    behavior_type: pick(record.behavior_type, cur.behavior_type),
+    trigger: pick(record.trigger, cur.trigger),
+    timestamp: pick(record.timestamp, cur.timestamp),
+    duration: pick(record.duration, cur.duration),
+    intensity: pick(record.intensity, cur.intensity),
+    recovery_period: pick(record.recovery_period, cur.recovery_period),
+    time_of_day: pick(record.time_of_day, cur.time_of_day),
+  };
+  await tx("entries", "readwrite", s => s.put(next));
+  return next;
+}
 async function deleteEntry(id) { await tx("entries", "readwrite", s => s.delete(id)); }
 
 // ── Chat sessions ───────────────────────────────────────────────────────────
@@ -155,12 +175,15 @@ async function addMessage(sessionId, petId, { role, kind, content, entry_id = nu
   await tx("messages", "readwrite", s => s.put(msg));
   return msg;
 }
-async function markMessageLogged(msgId, entryId) {
-  const msg = await tx("messages", "readonly", s => reqOf(s.get(msgId)));
-  if (!msg) return null;
-  const next = { ...msg, entry_id: entryId };
+async function updateMessage(id, patch) {
+  const cur = await tx("messages", "readonly", s => reqOf(s.get(id)));
+  if (!cur) return null;
+  const next = { ...cur, ...patch };
   await tx("messages", "readwrite", s => s.put(next));
   return next;
+}
+async function markMessageLogged(msgId, entryId) {
+  return updateMessage(msgId, { entry_id: entryId });
 }
 
 // ── Documents (saved reports + your own notes) ───────────────────────────────

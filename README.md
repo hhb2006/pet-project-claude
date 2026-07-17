@@ -85,9 +85,10 @@ Pages (`public/`):
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
     (with a "＋ New chat" for a fresh topic, like any LLM chat app). Chat is
     advice by default and **nothing is saved to the log unless you say so**:
-    every message you send carries its own **"＋ Add to log"** action, which
-    starts the follow-up-one-at-a-time flow and records a structured entry,
-    then marks the message "✓ Added to log".
+    every message you send carries its own **"＋ Add to log"** action. That
+    saves the entry **immediately** (so it shows up in Log straight away) and
+    marks the message "✓ Added to log"; any follow-up questions then refine
+    that same entry rather than creating another.
   - **Log** — every entry added from chat, newest first, each deletable, plus
     **Create report**: a narrative on the pet's **history and where things
     stand now**, a behavioral profile and questions for your vet — savable to
@@ -98,7 +99,14 @@ Pages (`public/`):
 
 A pet's name, species and breed can be edited any time via **Edit details**.
 - `db.js` — the local data layer (pets, entries, documents, attachments, chat
-  sessions and messages). `shared.css`, `app.js` — styling and helpers.
+  sessions and messages). `i18n.js` — English/Chinese strings and the language
+  switch. `species.js`, `shared.css`, `app.js` — species/breed data, styling
+  and helpers.
+
+The interface is available in **English and Simplified Chinese** (switch at the
+top right; remembered per browser, and defaulting to your browser's language).
+The chosen language is sent to the functions, so the assistant replies — and
+writes reports — in the same language. Breed names stay in English.
 
 Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**

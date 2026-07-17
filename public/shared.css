@@ -200,3 +200,12 @@ details summary { cursor: pointer; color: var(--accent); font-size: 0.88rem; }
 }
 .footerbar a { color: var(--accent); cursor: pointer; }
 .note { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 14px; }
+
+/* Language switch */
+.langswitch { display: flex; justify-content: flex-end; gap: 4px; margin-bottom: 6px; }
+.langswitch button {
+  background: transparent; color: var(--muted); border: 1px solid transparent;
+  border-radius: 999px; padding: 4px 11px; font-size: 0.8rem; font-weight: 600;
+}
+.langswitch button:hover { color: var(--ink); }
+.langswitch button.active { color: var(--accent); background: var(--accent-soft); }

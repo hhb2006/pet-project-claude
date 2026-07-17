@@ -70,6 +70,15 @@ const TOOL = {
   },
 };
 
+
+// The interface language follows the user's choice; the assistant must match it.
+function langNote(lang) {
+  return lang === "zh"
+    ? "\n\nIMPORTANT: Write every word of your reply in Simplified Chinese (简体中文), " +
+      "including any questions. Keep exactly the same warmth, and all the rules above still apply."
+    : "";
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") {
     return json(405, { error: "Method not allowed." });
@@ -84,9 +93,9 @@ exports.handler = async (event) => {
     });
   }
 
-  let messages;
+  let messages, lang;
   try {
-    ({ messages } = JSON.parse(event.body || "{}"));
+    ({ messages, lang } = JSON.parse(event.body || "{}"));
   } catch {
     return json(400, { error: "Could not read the request." });
   }
@@ -105,7 +114,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 1024,
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_PROMPT + langNote(lang),
         tools: [TOOL],
         tool_choice: { type: "tool", name: "record_event" },
         messages,

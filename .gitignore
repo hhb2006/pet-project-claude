@@ -1,0 +1,14 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Local behavior log (personal data — not for version control)
+pet_behavior_log.json
+
+# Environment / secrets
+.env

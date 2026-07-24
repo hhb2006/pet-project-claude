@@ -219,6 +219,34 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .linkbtn:hover { opacity: 0.8; }
 .logged { color: var(--muted); }
 .choicehint { color: var(--muted); font-size: 0.82rem; padding: 0 16px 12px; text-align: center; }
+
+/* Review extracted observation details before creating one log entry. */
+.log-dialog {
+  width: min(92vw, 520px); max-height: min(88vh, 720px); padding: 0;
+  color: var(--ink); background: var(--card); border: 1px solid var(--line);
+  border-radius: 18px; box-shadow: 0 24px 80px rgba(30, 25, 20, 0.28);
+}
+.log-dialog::backdrop { background: rgba(28, 24, 20, 0.48); backdrop-filter: blur(2px); }
+.log-dialog form { padding: 20px; overflow-y: auto; max-height: min(88vh, 720px); }
+.dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.dialog-head h2 { margin: 0; font-size: 1.2rem; }
+.dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 0.88rem; }
+.dialog-close {
+  flex: 0 0 auto; padding: 0; width: 34px; height: 34px; border-radius: 50%;
+  background: transparent; color: var(--muted); font-size: 1.4rem; line-height: 1;
+}
+.dialog-close:hover { color: var(--ink); background: var(--accent-soft); }
+.log-dialog-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+.log-dialog-fields .ffield:first-child,
+.log-dialog-fields .ffield:last-child { grid-column: 1 / -1; }
+.log-dialog-fields input { width: 100%; max-height: none; }
+.log-dialog-fields small { display: block; margin-top: 3px; color: var(--muted); font-size: 0.76rem; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+@media (max-width: 520px) {
+  .log-dialog-fields { grid-template-columns: 1fr; }
+  .log-dialog-fields .ffield { grid-column: 1; }
+}
+
 .msg.advice {
   background: transparent; border: 1px solid var(--line); align-self: stretch;
   max-width: 100%; white-space: normal;

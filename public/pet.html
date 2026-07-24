@@ -107,6 +107,50 @@
   <p class="note" data-i18n="pet_note"></p>
 </div>
 
+<dialog class="log-dialog" id="logDialog">
+  <form id="logDialogForm">
+    <div class="dialog-head">
+      <div>
+        <h2 data-i18n="log_dialog_title"></h2>
+        <p data-i18n="log_dialog_hint"></p>
+      </div>
+      <button type="button" class="dialog-close" id="closeLogDialog"
+              data-i18n-title="close">×</button>
+    </div>
+    <div class="log-dialog-fields">
+      <label class="ffield">
+        <span data-i18n="f_behavior"></span>
+        <input type="text" data-log-field="behavior_type" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_trigger"></span>
+        <input type="text" data-log-field="trigger" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_when"></span>
+        <input type="text" data-log-field="timestamp" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_duration"></span>
+        <input type="text" data-log-field="duration" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_intensity"></span>
+        <input type="number" min="1" max="10" step="1" data-log-field="intensity" />
+        <small data-i18n="intensity_midpoint"></small>
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_recovery"></span>
+        <input type="text" data-log-field="recovery_period" />
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="ghost" id="cancelLogDialog" data-i18n="cancel"></button>
+      <button type="submit" id="saveLogDialog" data-i18n="save_to_log"></button>
+    </div>
+  </form>
+</dialog>
+
 <script src="/db.js"></script>
 <script src="/i18n.js"></script>
 <script src="/species.js"></script>
@@ -137,8 +181,12 @@
   const sendBtn = document.getElementById("send");
   const sessionSel = document.getElementById("sessionSel");
   const hintEl = document.getElementById("choicehint");
+  const logDialog = document.getElementById("logDialog");
+  const logDialogForm = document.getElementById("logDialogForm");
+  const saveLogDialog = document.getElementById("saveLogDialog");
 
   let session = null;
+  let activeLogDraft = null;
 
   async function refreshSessions(selectId) {
     const sessions = await listSessions(petId);
@@ -227,7 +275,7 @@
     const act = document.createElement("div");
     act.className = "msgactions";
     if (m.entry_id) {
-      act.innerHTML = `<span class="logged">${t("added_to_log")}</span>`;
+      loggedButton(act, m);
     } else if (m.kind === "advice") {
       addButton(act, m);
     }
@@ -316,19 +364,30 @@
     } finally { busy(false); }
   }
 
-  // Adding to the log is a quiet side-action: no chat messages, no follow-up
-  // questions. One extraction call, the entry is saved, the link says "Added".
+  // Logging is separate from the conversation: extract what is already known,
+  // let the owner review every field in a dialog, then save exactly one entry
+  // linked to the source message.
   function addButton(act, m) {
     act.innerHTML = "";
     const b = document.createElement("button");
     b.type = "button";
     b.className = "linkbtn";
     b.textContent = t("add_to_log");
-    b.onclick = () => addToLog(m, act);
+    b.onclick = () => prepareLog(m, act);
     act.appendChild(b);
   }
 
-  async function addToLog(m, act) {
+  function loggedButton(act, m) {
+    act.innerHTML = "";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "linkbtn logged";
+    b.textContent = t("added_edit_log");
+    b.onclick = () => editLinkedLog(m, act);
+    act.appendChild(b);
+  }
+
+  async function prepareLog(m, act) {
     act.innerHTML = `<span class="logged">${t("adding")}</span>`;
     try {
       const thread = (await listMessages(session.id)).filter(message => message.kind === "advice");
@@ -346,16 +405,85 @@
         act.innerHTML = `<span class="logged">${t("nothing_to_log")}</span>`;
         return;
       }
-
-      const entry = await addEntry(petId, data);
-      await markMessageLogged(m.id, entry.id);
-      act.innerHTML = `<span class="logged">${t("added_to_log")}</span>`;
-      await refreshMeta();
-      await renderEntries();
+      addButton(act, m);
+      openLogDialog(m, act, data);
     } catch {
       addFailed(act, m);
     }
   }
+
+  async function editLinkedLog(m, act) {
+    const entry = await getEntry(m.entry_id);
+    if (!entry) {
+      m.entry_id = null;
+      await markMessageLogged(m.id, null);
+      addButton(act, m);
+      return;
+    }
+    openLogDialog(m, act, entry);
+  }
+
+  function openLogDialog(m, act, record) {
+    activeLogDraft = { message: m, action: act };
+    logDialog.querySelectorAll("[data-log-field]").forEach(field => {
+      field.value = record[field.dataset.logField] ?? "";
+    });
+    logDialog.showModal();
+    logDialog.querySelector('[data-log-field="behavior_type"]').focus();
+  }
+
+  function closeLogDialog() {
+    if (logDialog.open) logDialog.close();
+  }
+
+  document.getElementById("closeLogDialog").onclick = closeLogDialog;
+  document.getElementById("cancelLogDialog").onclick = closeLogDialog;
+  logDialog.addEventListener("close", () => { activeLogDraft = null; });
+  logDialog.addEventListener("click", event => {
+    if (event.target !== logDialog) return;
+    const rect = logDialog.getBoundingClientRect();
+    const inside = event.clientX >= rect.left && event.clientX <= rect.right &&
+      event.clientY >= rect.top && event.clientY <= rect.bottom;
+    if (!inside) closeLogDialog();
+  });
+
+  logDialogForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!activeLogDraft || saveLogDialog.disabled) return;
+
+    const fields = {};
+    logDialog.querySelectorAll("[data-log-field]").forEach(field => {
+      fields[field.dataset.logField] = field.value.trim();
+    });
+    if (!fields.behavior_type) {
+      alert(t("behavior_required"));
+      logDialog.querySelector('[data-log-field="behavior_type"]').focus();
+      return;
+    }
+    if (fields.intensity !== "" &&
+        !(Number.isInteger(Number(fields.intensity)) &&
+          Number(fields.intensity) >= 1 && Number(fields.intensity) <= 10)) {
+      alert(t("bad_intensity"));
+      logDialog.querySelector('[data-log-field="intensity"]').focus();
+      return;
+    }
+
+    const draft = activeLogDraft;
+    saveLogDialog.disabled = true;
+    try {
+      const entry = await saveEntryForMessage(petId, draft.message.id, fields);
+      if (!entry) throw new Error("No log entry was saved.");
+      draft.message.entry_id = entry.id;
+      loggedButton(draft.action, draft.message);
+      closeLogDialog();
+      await refreshMeta();
+      await renderEntries();
+    } catch {
+      alert(t("save_log_failed"));
+    } finally {
+      saveLogDialog.disabled = false;
+    }
+  });
 
   // Surface the failure on the message itself rather than as a chat message.
   function addFailed(act, m) {
@@ -365,7 +493,7 @@
     span.textContent = t("add_failed") + " ";
     const retry = document.createElement("button");
     retry.type = "button"; retry.className = "linkbtn"; retry.textContent = t("retry");
-    retry.onclick = () => addToLog(m, act);
+    retry.onclick = () => prepareLog(m, act);
     act.appendChild(span); act.appendChild(retry);
   }
 

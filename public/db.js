@@ -116,6 +116,63 @@ async function addEntry(petId, record) {
   await tx("entries", "readwrite", s => s.put(entry));
   return entry;
 }
+async function getEntry(id) {
+  return tx("entries", "readonly", s => reqOf(s.get(id)));
+}
+
+// Create or update the single entry linked to a source chat message. IndexedDB
+// serializes these read/write transactions, so repeated clicks or another tab
+// update the same entry instead of creating duplicates for that message.
+async function saveEntryForMessage(petId, messageId, record) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction(["entries", "messages"], "readwrite");
+    const entries = transaction.objectStore("entries");
+    const messages = transaction.objectStore("messages");
+    let savedEntry = null;
+
+    const messageRequest = messages.get(messageId);
+    messageRequest.onsuccess = () => {
+      const message = messageRequest.result;
+      if (!message || message.pet_id !== petId) {
+        transaction.abort();
+        return;
+      }
+
+      const entryId = message.entry_id || uid();
+      const entryRequest = entries.get(entryId);
+      entryRequest.onsuccess = () => {
+        const existing = entryRequest.result;
+        const text = value => {
+          if (value === undefined || value === null) return null;
+          const clean = String(value).trim();
+          return clean || null;
+        };
+        const intensityText = text(record.intensity);
+        savedEntry = {
+          ...(existing || {}),
+          id: entryId,
+          pet_id: petId,
+          source_message_id: messageId,
+          logged_at: existing?.logged_at || new Date().toISOString(),
+          behavior_type: text(record.behavior_type),
+          trigger: text(record.trigger),
+          timestamp: text(record.timestamp),
+          duration: text(record.duration),
+          intensity: intensityText === null ? null : Number(intensityText),
+          recovery_period: text(record.recovery_period),
+          time_of_day: existing?.time_of_day || null,
+          ...(existing ? { edited_at: new Date().toISOString() } : {}),
+        };
+        entries.put(savedEntry);
+        messages.put({ ...message, entry_id: entryId });
+      };
+    };
+
+    transaction.oncomplete = () => resolve(savedEntry);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error || new Error("Could not save log entry."));
+  }));
+}
 // Editing an entry by hand replaces the fields exactly as given — a field left
 // blank becomes null ("not recorded"), so the owner can clear something the
 // assistant got wrong, not just add to it.

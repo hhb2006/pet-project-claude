@@ -23,9 +23,12 @@
           <option value="" disabled selected>Species…</option>
         </select>
         <input type="text" id="speciesOther" data-i18n-ph="species_other_ph" style="display:none" />
-        <input type="search" id="breed" list="breedOptions" data-i18n-ph="breed_ph"
-               autocomplete="off" style="display:none" />
-        <datalist id="breedOptions"></datalist>
+        <div class="breed-combobox" id="breedBox" style="display:none">
+          <input type="search" id="breed" data-i18n-ph="breed_ph" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="breedOptions" />
+          <div class="breed-options" id="breedOptions" role="listbox" hidden></div>
+        </div>
       </div>
       <p class="hint" data-i18n="pet_hint"></p>
       <div class="rowbtns"><button id="add" data-i18n="create"></button></div>
@@ -46,6 +49,7 @@
   const form = wireSpeciesBreed({
     speciesSel: document.getElementById("species"),
     speciesOther: document.getElementById("speciesOther"),
+    breedBox: document.getElementById("breedBox"),
     breedInput: document.getElementById("breed"),
     breedList: document.getElementById("breedOptions"),
   });

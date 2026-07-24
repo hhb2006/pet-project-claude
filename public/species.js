@@ -550,10 +550,10 @@ function emojiFor(species) {
   return "🐾";
 }
 
-// Wires a species <select> to a searchable breed input. Its datalist lets the
-// user type to filter or choose from the same field, while still accepting a
-// breed that is not in the curated list.
-function wireSpeciesBreed({ speciesSel, speciesOther, breedInput, breedList }) {
+// Wires a species <select> to a single searchable breed combobox. Users can
+// type to filter or choose from the dropdown, while still accepting a breed
+// that is not in the curated list.
+function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, breedList }) {
   speciesSel.innerHTML = `<option value="" disabled selected>${typeof t === "function" ? t("species_ph") : "Species…"}</option>`;
   for (const s of SPECIES) {
     const o = document.createElement("option");
@@ -562,26 +562,85 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedInput, breedList }) {
     speciesSel.appendChild(o);
   }
 
+  let currentBreeds = [];
+  let visibleBreeds = [];
+  let activeIndex = -1;
+
+  function closeBreedList() {
+    breedList.hidden = true;
+    breedInput.setAttribute("aria-expanded", "false");
+    breedInput.removeAttribute("aria-activedescendant");
+    activeIndex = -1;
+  }
+
+  function chooseBreed(breed) {
+    breedInput.value = breedLabel(speciesSel.value, breed);
+    closeBreedList();
+  }
+
+  function setActive(index) {
+    const options = [...breedList.querySelectorAll(".breed-option")];
+    if (!options.length) return;
+    activeIndex = Math.max(0, Math.min(index, options.length - 1));
+    options.forEach((option, i) => {
+      option.classList.toggle("active", i === activeIndex);
+      option.setAttribute("aria-selected", i === activeIndex ? "true" : "false");
+    });
+    const active = options[activeIndex];
+    breedInput.setAttribute("aria-activedescendant", active.id);
+    active.scrollIntoView({ block: "nearest" });
+  }
+
+  function renderBreedList(query = "") {
+    const needle = String(query).trim().toLocaleLowerCase();
+    visibleBreeds = currentBreeds.filter(b =>
+      !needle || [b, breedLabel(speciesSel.value, b)]
+        .some(label => label.toLocaleLowerCase().includes(needle))
+    );
+    breedList.innerHTML = "";
+    activeIndex = -1;
+    if (!visibleBreeds.length) {
+      const empty = document.createElement("div");
+      empty.className = "breed-empty";
+      empty.textContent = typeof t === "function" ? t("breed_no_results") : "No matching breeds";
+      breedList.appendChild(empty);
+    }
+    visibleBreeds.forEach((breed, index) => {
+      const option = document.createElement("button");
+      option.type = "button";
+      option.id = `${breedList.id}-option-${index}`;
+      option.className = "breed-option";
+      option.setAttribute("role", "option");
+      option.setAttribute("aria-selected", "false");
+      option.textContent = breedLabel(speciesSel.value, breed);
+      option.addEventListener("mousedown", event => event.preventDefault());
+      option.addEventListener("click", () => chooseBreed(breed));
+      breedList.appendChild(option);
+    });
+  }
+
+  function openBreedList() {
+    if (!currentBreeds.length) return;
+    renderBreedList(breedInput.value);
+    breedList.hidden = false;
+    breedInput.setAttribute("aria-expanded", "true");
+  }
+
   function populateBreeds(species, selected) {
     breedInput.value = "";
     breedList.innerHTML = "";
     const breeds = BREEDS[species];
-    if (breeds) {
-      for (const b of sortedBreeds(species, breeds).filter(b => b !== OTHER)) {
-        const o = document.createElement("option");
-        o.value = breedLabel(species, b);
-        // In Chinese, keep the canonical English name searchable too.
-        if (o.value !== b) o.label = b;
-        breedList.appendChild(o);
-      }
-    }
+    currentBreeds = breeds
+      ? sortedBreeds(species, breeds).filter(b => b !== OTHER)
+      : [];
     breedInput.placeholder = breeds
       ? (typeof t === "function" ? t("breed_ph") : "Search or choose a breed…")
       : (typeof t === "function" ? t("breed_optional_ph") : "Breed (optional)");
-    breedInput.style.display = species ? "block" : "none";
+    breedBox.style.display = species ? "block" : "none";
     if (selected) breedInput.value = breeds && breeds.includes(selected)
       ? breedLabel(species, selected)
       : selected;
+    closeBreedList();
   }
 
   speciesSel.addEventListener("change", () => {
@@ -589,6 +648,30 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedInput, breedList }) {
     speciesOther.style.display = v === "other" ? "block" : "none";
     if (v === "other") speciesOther.value = "";
     populateBreeds(v);
+  });
+
+  breedInput.addEventListener("focus", openBreedList);
+  breedInput.addEventListener("click", openBreedList);
+  breedInput.addEventListener("input", openBreedList);
+  breedInput.addEventListener("keydown", event => {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (breedList.hidden) openBreedList();
+      setActive(activeIndex + (event.key === "ArrowDown" ? 1 : -1));
+    } else if (event.key === "Enter" && activeIndex >= 0) {
+      event.preventDefault();
+      chooseBreed(visibleBreeds[activeIndex]);
+    } else if (event.key === "Escape") {
+      closeBreedList();
+    }
+  });
+  document.addEventListener("click", event => {
+    if (!breedBox.contains(event.target)) closeBreedList();
+  });
+  breedBox.addEventListener("focusout", () => {
+    setTimeout(() => {
+      if (!breedBox.contains(document.activeElement)) closeBreedList();
+    }, 0);
   });
 
   function canonicalBreed(species, value) {
@@ -627,8 +710,10 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedInput, breedList }) {
     reset() {
       speciesSel.selectedIndex = 0;
       speciesOther.value = ""; speciesOther.style.display = "none";
-      breedInput.value = ""; breedInput.style.display = "none";
+      breedInput.value = ""; breedBox.style.display = "none";
       breedList.innerHTML = "";
+      currentBreeds = [];
+      closeBreedList();
     },
   };
 }

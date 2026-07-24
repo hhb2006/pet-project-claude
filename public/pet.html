@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pet · Behavior Journal</title>
+<title>Pet Diary</title>
 <link rel="stylesheet" href="/shared.css" />
 </head>
 <body>
@@ -207,11 +207,7 @@
   function adviceBubble(text) {
     const d = document.createElement("div");
     d.className = "msg advice";
-    d.innerHTML = `<span class="pill">${t("advice_pill")}</span>`;
-    const p = document.createElement("div");
-    p.style.whiteSpace = "pre-wrap";
-    p.textContent = text;
-    d.appendChild(p);
+    d.textContent = text;
     chatlog.appendChild(d);
     chatlog.scrollTop = chatlog.scrollHeight;
     return d;
@@ -626,7 +622,7 @@
   // Everything that reflects the pet's name/species, in one place so an edit
   // updates the whole page.
   function applyPet() {
-    document.title = `${pet.name} · Behavior Journal`;
+    document.title = `${pet.name} · ${t("app_title")}`;
     document.getElementById("petname").textContent = pet.name;
     input.placeholder = t("chat_ph", { name: pet.name });
   }

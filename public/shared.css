@@ -61,15 +61,19 @@ header.page p { margin: 0; color: var(--muted); font-size: 0.95rem; }
 
 /* Landing cards */
 .tiles { display: grid; gap: 14px; }
-a.tile {
-  display: block; text-decoration: none; color: inherit;
+.tile {
+  display: block; color: inherit; cursor: pointer;
   background: var(--card); border: 1px solid var(--line); border-radius: 16px;
   padding: 18px 20px; box-shadow: var(--shadow);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
-a.tile:hover { border-color: var(--accent); }
-a.tile h2 { margin: 0 0 4px; font-size: 1.1rem; }
-a.tile p { margin: 0; color: var(--muted); font-size: 0.92rem; }
-a.tile .emoji { font-size: 1.4rem; margin-right: 6px; }
+.tile:hover, .tile:focus-visible {
+  border-color: var(--accent); transform: translateY(-2px);
+  box-shadow: 0 14px 42px rgba(60, 50, 40, 0.13);
+}
+.tile:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tile h2 { margin: 0 0 4px; font-size: 1.1rem; }
+.tile p { margin: 0; color: var(--muted); font-size: 0.92rem; }
 
 /* Chat */
 .chat { display: flex; flex-direction: column; min-height: 460px; }
@@ -163,7 +167,9 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .petrow .avatar {
   width: 44px; height: 44px; border-radius: 50%; background: var(--accent-soft);
   display: grid; place-items: center; font-size: 1.3rem; flex: 0 0 auto;
+  transition: transform 160ms ease;
 }
+.tile:hover .avatar, .tile:focus-visible .avatar { transform: scale(1.12) rotate(-3deg); }
 .petrow .grow { flex: 1; min-width: 0; }
 .petrow .del { background: transparent; color: var(--muted); border: none; padding: 6px 8px; font-size: 0.85rem; }
 .petrow .del:hover { color: #b4462f; }
@@ -192,9 +198,10 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .logged { color: var(--muted); }
 .choicehint { color: var(--muted); font-size: 0.82rem; padding: 0 16px 12px; text-align: center; }
 .msg.advice { background: transparent; border: 1px solid var(--line); align-self: stretch; max-width: 100%; }
-.pill {
-  display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
-  text-transform: uppercase; color: var(--muted); margin-bottom: 6px;
+@media (prefers-reduced-motion: reduce) {
+  .tile, .petrow .avatar { transition: none; }
+  .tile:hover, .tile:focus-visible,
+  .tile:hover .avatar, .tile:focus-visible .avatar { transform: none; }
 }
 
 /* Documents & attachments */

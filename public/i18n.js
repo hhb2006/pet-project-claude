@@ -5,7 +5,7 @@
 
 const I18N = {
   en: {
-    app_title: "Pet Behavior Journal",
+    app_title: "Pet Diary",
     app_tagline: "A gentle place to notice, record, and understand what your pets do.",
     add_pet: "Add a pet",
     name_ph: "Name",
@@ -43,7 +43,6 @@ const I18N = {
     send: "Send",
     greet: "Tell me about {name} — ask me anything, or describe something they did. You can add any message to the log afterwards.",
     hint_free: "Chat freely — nothing is saved to the log unless you add it.",
-    advice_pill: "Advice · not logged",
     add_to_log: "＋ Add to log",
     added_to_log: "✓ Added",
     adding: "Adding…",
@@ -107,7 +106,7 @@ const I18N = {
   },
 
   zh: {
-    app_title: "宠物行为日志",
+    app_title: "宠物日记",
     app_tagline: "一个温柔的地方，记录、观察并理解你的宠物。",
     add_pet: "添加宠物",
     name_ph: "名字",
@@ -145,7 +144,6 @@ const I18N = {
     send: "发送",
     greet: "和我聊聊 {name} 吧——可以问我任何问题，也可以描述它做了什么。之后你可以把任何一条消息加入日志。",
     hint_free: "随意聊天——除非你手动添加，否则不会记入日志。",
-    advice_pill: "建议 · 未记入日志",
     add_to_log: "＋ 加入日志",
     added_to_log: "✓ 已加入",
     adding: "正在加入…",

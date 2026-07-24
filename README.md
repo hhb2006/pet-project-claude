@@ -1,4 +1,4 @@
-# Pet Behavior Logger 🐾
+# Pet Diary 🐾
 
 A warm, conversational CLI that helps pet owners log behavioral events. You
 describe something your pet did in plain language; the assistant extracts

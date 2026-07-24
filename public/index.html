@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pet Behavior Journal</title>
+<title>Pet Diary</title>
 <link rel="stylesheet" href="/shared.css" />
 </head>
 <body data-title-key="app_title">
@@ -67,6 +67,9 @@
       const last = entries.length ? t("last_logged", { d: fmtDate(entries[entries.length - 1].logged_at) }) : null;
       const tile = document.createElement("div");
       tile.className = "tile";
+      tile.tabIndex = 0;
+      tile.setAttribute("role", "link");
+      tile.setAttribute("aria-label", pet.name);
       const kind = [breedLabel(pet.species, pet.breed), speciesDisplay(pet.species)].filter(Boolean).join(" · ");
       tile.innerHTML = `
         <div class="petrow">
@@ -77,9 +80,13 @@
           </div>
           <button class="del">${t("delete")}</button>
         </div>`;
-      tile.style.cursor = "pointer";
       tile.addEventListener("click", (e) => {
         if (e.target.classList.contains("del")) return;
+        location.href = `/pet.html?id=${encodeURIComponent(pet.id)}`;
+      });
+      tile.addEventListener("keydown", (e) => {
+        if (e.target !== tile || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
         location.href = `/pet.html?id=${encodeURIComponent(pet.id)}`;
       });
       tile.querySelector(".del").addEventListener("click", async (e) => {

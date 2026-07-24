@@ -541,6 +541,16 @@ function breedLabel(species, breed) {
   return (table && table[breed]) || BREED_ZH._common[breed] || breed;
 }
 
+// Search both what the user sees and the canonical English value. This lets a
+// Chinese user find "贵宾犬" or "Poodle" without changing what is stored.
+function breedMatchesSearch(species, breed, query) {
+  const needle = String(query || "").trim().toLocaleLowerCase();
+  if (!needle) return true;
+  return [breed, breedLabel(species, breed)].some(value =>
+    String(value || "").toLocaleLowerCase().includes(needle)
+  );
+}
+
 function emojiFor(species) {
   const s = (species || "").toLowerCase();
   const hit = SPECIES.find(x => x.value === s);
@@ -553,7 +563,7 @@ function emojiFor(species) {
 // Wires a species <select> to a dependent breed <select>, with free-text
 // fallbacks for "Other…". Used by both the create form and the edit form.
 // Returns getters/setters so callers don't repeat the cascade logic.
-function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
+function wireSpeciesBreed({ speciesSel, speciesOther, breedSearch, breedSel, breedOther }) {
   speciesSel.innerHTML = `<option value="" disabled selected>${typeof t === "function" ? t("species_ph") : "Species…"}</option>`;
   for (const s of SPECIES) {
     const o = document.createElement("option");
@@ -563,6 +573,10 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
   }
 
   function populateBreeds(species, selected) {
+    if (breedSearch) {
+      breedSearch.value = "";
+      breedSearch.style.display = "none";
+    }
     breedOther.value = "";
     breedOther.style.display = "none";
     const breeds = BREEDS[species];
@@ -575,25 +589,36 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
       if (selected) breedOther.value = selected;
       return;
     }
+
+    if (breedSearch) breedSearch.style.display = "block";
+    renderBreedOptions(species, breeds, selected);
+    breedSel.style.display = "block";
+    if (selected && !breeds.includes(selected)) {
+      // A breed typed by hand previously — keep it in the free-text box.
+      breedSel.value = OTHER;
+      breedOther.placeholder = typeof t === "function" ? t("breed_free_ph") : "Breed";
+      breedOther.value = selected;
+      breedOther.style.display = "block";
+    }
+  }
+
+  function renderBreedOptions(species, breeds, selected, query = "") {
+    const choices = sortedBreeds(species, breeds)
+      .filter(b => breedMatchesSearch(species, b, query));
     breedSel.innerHTML = `<option value="" disabled selected>${typeof t === "function" ? t("breed_ph") : "Breed…"}</option>`;
-    for (const b of sortedBreeds(species, breeds)) {
+    for (const b of choices) {
       const o = document.createElement("option");
       o.value = b;                                   // stored value stays English
       o.textContent = breedLabel(species, b);        // label follows the language
       breedSel.appendChild(o);
     }
-    breedSel.style.display = "block";
-    if (selected) {
-      if (breeds.includes(selected)) {
-        breedSel.value = selected;
-      } else {
-        // A breed typed by hand previously — keep it in the free-text box.
-        breedSel.value = OTHER;
-        breedOther.placeholder = typeof t === "function" ? t("breed_free_ph") : "Breed";
-        breedOther.value = selected;
-        breedOther.style.display = "block";
-      }
+    if (!choices.length) {
+      const o = document.createElement("option");
+      o.disabled = true;
+      o.textContent = typeof t === "function" ? t("breed_no_results") : "No matching breeds";
+      breedSel.appendChild(o);
     }
+    if (selected && choices.includes(selected)) breedSel.value = selected;
   }
 
   speciesSel.addEventListener("change", () => {
@@ -609,6 +634,16 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
     breedOther.style.display = isOther ? "block" : "none";
     if (isOther) breedOther.focus();
   });
+
+  if (breedSearch) {
+    breedSearch.addEventListener("input", () => {
+      const species = speciesSel.value;
+      const breeds = BREEDS[species];
+      if (breeds) renderBreedOptions(species, breeds, "", breedSearch.value);
+      breedOther.value = "";
+      breedOther.style.display = "none";
+    });
+  }
 
   return {
     getSpecies() {
@@ -637,10 +672,11 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSel, breedOther }) {
     reset() {
       speciesSel.selectedIndex = 0;
       speciesOther.value = ""; speciesOther.style.display = "none";
+      if (breedSearch) { breedSearch.value = ""; breedSearch.style.display = "none"; }
       breedSel.innerHTML = ""; breedSel.style.display = "none";
       breedOther.value = ""; breedOther.style.display = "none";
     },
   };
 }
 
-if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, BREED_ZH, emojiFor, speciesLabel, speciesDisplay, breedLabel, sortedBreeds, MIXED, OTHER };
+if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, BREED_ZH, emojiFor, speciesLabel, speciesDisplay, breedLabel, breedMatchesSearch, sortedBreeds, MIXED, OTHER };

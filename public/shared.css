@@ -88,7 +88,7 @@ a.tile .emoji { font-size: 1.4rem; margin-right: 6px; }
 
 /* Composer / forms */
 .composer { display: flex; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
-textarea, input[type="text"], input[type="number"] {
+textarea, input[type="text"], input[type="number"], input[type="search"] {
   flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px;
   padding: 11px 14px; font: inherit; color: inherit; background: var(--bg); max-height: 140px;
 }

@@ -475,6 +475,7 @@
         await deleteEntry(e.id);
         await renderEntries();
         await refreshMeta();
+        if (session) await openSession(session.id);
       };
       el.appendChild(item);
     }

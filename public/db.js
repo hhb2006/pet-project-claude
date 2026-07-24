@@ -137,7 +137,30 @@ async function updateEntry(id, fields) {
   await tx("entries", "readwrite", s => s.put(next));
   return next;
 }
-async function deleteEntry(id) { await tx("entries", "readwrite", s => s.delete(id)); }
+// Delete the entry and release every chat message linked to it in one atomic
+// transaction. Released messages can then be added to the log again.
+async function deleteEntry(id) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction(["entries", "messages"], "readwrite");
+    const entries = transaction.objectStore("entries");
+    const messages = transaction.objectStore("messages");
+    entries.delete(id);
+
+    const cursorRequest = messages.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) return;
+      if (cursor.value.entry_id === id) {
+        cursor.update({ ...cursor.value, entry_id: null });
+      }
+      cursor.continue();
+    };
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  }));
+}
 
 // ── Chat sessions ───────────────────────────────────────────────────────────
 async function listSessions(petId) {

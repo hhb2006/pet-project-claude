@@ -108,7 +108,9 @@ A pet's name, species and breed can be edited any time via **Edit details**.
 The interface is available in **English and Simplified Chinese** (switch at the
 top right; remembered per browser, and defaulting to your browser's language).
 The chosen language is sent to the functions, so the assistant replies — and
-writes reports — in the same language. Breed names stay in English.
+writes reports — in the same language. Species and all 346 breed names are
+translated too; the stored values stay English so records are language-neutral
+and switching languages never rewrites your data.
 
 Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**

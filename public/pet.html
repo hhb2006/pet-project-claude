@@ -337,21 +337,12 @@
     typing(true); busy(true);
     try {
       // Keep the saved advice thread coherent across turns.
-      const storedMessages = await listMessages(session.id);
-      const history = storedMessages
+      const history = (await listMessages(session.id))
         .filter(m => m.kind === "advice")
         .map(m => ({ role: m.role, content: m.content }));
-      const knownEvents = storedMessages
-        .filter(m => m.log_candidate?.detected)
-        .map(m => m.log_candidate);
       const res = await fetch("/.netlify/functions/advise", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          messages: history,
-          known_events: knownEvents,
-          pet: petContext(),
-          lang: langNow(),
-        }),
+        body: JSON.stringify({ messages: history, pet: petContext(), lang: langNow() }),
       });
       const data = await res.json();
       typing(false);

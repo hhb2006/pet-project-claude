@@ -24,9 +24,9 @@
         <input type="text" id="eName" data-i18n-ph="name_label_ph" />
         <select id="eSpecies"></select>
         <input type="text" id="eSpeciesOther" data-i18n-ph="species_other_ph" style="display:none" />
-        <input type="search" id="eBreedSearch" data-i18n-ph="breed_search_ph" style="display:none" />
-        <select id="eBreed" style="display:none"></select>
-        <input type="text" id="eBreedOther" data-i18n-ph="breed_free_ph" style="display:none" />
+        <input type="search" id="eBreed" list="eBreedOptions" data-i18n-ph="breed_ph"
+               autocomplete="off" style="display:none" />
+        <datalist id="eBreedOptions"></datalist>
       </div>
       <div class="rowbtns">
         <button id="savePet" data-i18n="save"></button>
@@ -584,9 +584,8 @@
   const petForm = wireSpeciesBreed({
     speciesSel: document.getElementById("eSpecies"),
     speciesOther: document.getElementById("eSpeciesOther"),
-    breedSearch: document.getElementById("eBreedSearch"),
-    breedSel: document.getElementById("eBreed"),
-    breedOther: document.getElementById("eBreedOther"),
+    breedInput: document.getElementById("eBreed"),
+    breedList: document.getElementById("eBreedOptions"),
   });
   const editCard = document.getElementById("editCard");
 

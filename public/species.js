@@ -541,16 +541,6 @@ function breedLabel(species, breed) {
   return (table && table[breed]) || BREED_ZH._common[breed] || breed;
 }
 
-// Search both what the user sees and the canonical English value. This lets a
-// Chinese user find "贵宾犬" or "Poodle" without changing what is stored.
-function breedMatchesSearch(species, breed, query) {
-  const needle = String(query || "").trim().toLocaleLowerCase();
-  if (!needle) return true;
-  return [breed, breedLabel(species, breed)].some(value =>
-    String(value || "").toLocaleLowerCase().includes(needle)
-  );
-}
-
 function emojiFor(species) {
   const s = (species || "").toLowerCase();
   const hit = SPECIES.find(x => x.value === s);
@@ -560,10 +550,10 @@ function emojiFor(species) {
   return "🐾";
 }
 
-// Wires a species <select> to a dependent breed <select>, with free-text
-// fallbacks for "Other…". Used by both the create form and the edit form.
-// Returns getters/setters so callers don't repeat the cascade logic.
-function wireSpeciesBreed({ speciesSel, speciesOther, breedSearch, breedSel, breedOther }) {
+// Wires a species <select> to a searchable breed input. Its datalist lets the
+// user type to filter or choose from the same field, while still accepting a
+// breed that is not in the curated list.
+function wireSpeciesBreed({ speciesSel, speciesOther, breedInput, breedList }) {
   speciesSel.innerHTML = `<option value="" disabled selected>${typeof t === "function" ? t("species_ph") : "Species…"}</option>`;
   for (const s of SPECIES) {
     const o = document.createElement("option");
@@ -573,52 +563,25 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSearch, breedSel, bre
   }
 
   function populateBreeds(species, selected) {
-    if (breedSearch) {
-      breedSearch.value = "";
-      breedSearch.style.display = "none";
-    }
-    breedOther.value = "";
-    breedOther.style.display = "none";
+    breedInput.value = "";
+    breedList.innerHTML = "";
     const breeds = BREEDS[species];
-    if (!breeds) {
-      // No curated list for this species — offer a free-text breed instead.
-      breedSel.style.display = "none";
-      breedSel.innerHTML = "";
-      breedOther.placeholder = typeof t === "function" ? t("breed_optional_ph") : "Breed (optional)";
-      breedOther.style.display = species ? "block" : "none";
-      if (selected) breedOther.value = selected;
-      return;
+    if (breeds) {
+      for (const b of sortedBreeds(species, breeds).filter(b => b !== OTHER)) {
+        const o = document.createElement("option");
+        o.value = breedLabel(species, b);
+        // In Chinese, keep the canonical English name searchable too.
+        if (o.value !== b) o.label = b;
+        breedList.appendChild(o);
+      }
     }
-
-    if (breedSearch) breedSearch.style.display = "block";
-    renderBreedOptions(species, breeds, selected);
-    breedSel.style.display = "block";
-    if (selected && !breeds.includes(selected)) {
-      // A breed typed by hand previously — keep it in the free-text box.
-      breedSel.value = OTHER;
-      breedOther.placeholder = typeof t === "function" ? t("breed_free_ph") : "Breed";
-      breedOther.value = selected;
-      breedOther.style.display = "block";
-    }
-  }
-
-  function renderBreedOptions(species, breeds, selected, query = "") {
-    const choices = sortedBreeds(species, breeds)
-      .filter(b => breedMatchesSearch(species, b, query));
-    breedSel.innerHTML = `<option value="" disabled selected>${typeof t === "function" ? t("breed_ph") : "Breed…"}</option>`;
-    for (const b of choices) {
-      const o = document.createElement("option");
-      o.value = b;                                   // stored value stays English
-      o.textContent = breedLabel(species, b);        // label follows the language
-      breedSel.appendChild(o);
-    }
-    if (!choices.length) {
-      const o = document.createElement("option");
-      o.disabled = true;
-      o.textContent = typeof t === "function" ? t("breed_no_results") : "No matching breeds";
-      breedSel.appendChild(o);
-    }
-    if (selected && choices.includes(selected)) breedSel.value = selected;
+    breedInput.placeholder = breeds
+      ? (typeof t === "function" ? t("breed_ph") : "Search or choose a breed…")
+      : (typeof t === "function" ? t("breed_optional_ph") : "Breed (optional)");
+    breedInput.style.display = species ? "block" : "none";
+    if (selected) breedInput.value = breeds && breeds.includes(selected)
+      ? breedLabel(species, selected)
+      : selected;
   }
 
   speciesSel.addEventListener("change", () => {
@@ -628,21 +591,15 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSearch, breedSel, bre
     populateBreeds(v);
   });
 
-  breedSel.addEventListener("change", () => {
-    const isOther = breedSel.value === OTHER;
-    breedOther.placeholder = typeof t === "function" ? t("breed_free_ph") : "Breed";
-    breedOther.style.display = isOther ? "block" : "none";
-    if (isOther) breedOther.focus();
-  });
-
-  if (breedSearch) {
-    breedSearch.addEventListener("input", () => {
-      const species = speciesSel.value;
-      const breeds = BREEDS[species];
-      if (breeds) renderBreedOptions(species, breeds, "", breedSearch.value);
-      breedOther.value = "";
-      breedOther.style.display = "none";
-    });
+  function canonicalBreed(species, value) {
+    const typed = String(value || "").trim();
+    const breeds = BREEDS[species] || [];
+    const folded = typed.toLocaleLowerCase();
+    const match = breeds.find(b =>
+      b !== OTHER && [b, breedLabel(species, b)]
+        .some(label => label.toLocaleLowerCase() === folded)
+    );
+    return match || typed;
   }
 
   return {
@@ -650,9 +607,7 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSearch, breedSel, bre
       return speciesSel.value === "other" ? speciesOther.value.trim() : (speciesSel.value || "");
     },
     getBreed() {
-      if (breedOther.style.display !== "none" && breedOther.value.trim()) return breedOther.value.trim();
-      if (breedSel.style.display !== "none" && breedSel.value && breedSel.value !== OTHER) return breedSel.value;
-      return "";
+      return canonicalBreed(speciesSel.value, breedInput.value);
     },
     setValues(species, breed) {
       if (!species) { this.reset(); return; }
@@ -672,11 +627,10 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedSearch, breedSel, bre
     reset() {
       speciesSel.selectedIndex = 0;
       speciesOther.value = ""; speciesOther.style.display = "none";
-      if (breedSearch) { breedSearch.value = ""; breedSearch.style.display = "none"; }
-      breedSel.innerHTML = ""; breedSel.style.display = "none";
-      breedOther.value = ""; breedOther.style.display = "none";
+      breedInput.value = ""; breedInput.style.display = "none";
+      breedList.innerHTML = "";
     },
   };
 }
 
-if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, BREED_ZH, emojiFor, speciesLabel, speciesDisplay, breedLabel, breedMatchesSearch, sortedBreeds, MIXED, OTHER };
+if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, BREED_ZH, emojiFor, speciesLabel, speciesDisplay, breedLabel, sortedBreeds, MIXED, OTHER };

@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pet · Behavior Journal</title>
+<title>Pet Diary</title>
 <link rel="stylesheet" href="/shared.css" />
 </head>
 <body>
 <div class="wrap">
   <div id="langSwitch"></div>
-  <nav class="tabs"><a href="/index.html" data-i18n="back_all_pets"></a></nav>
+  <nav class="tabs backnav"><a href="/index.html" data-i18n="back_all_pets"></a></nav>
 
   <header class="page">
     <h1 id="petname">…</h1>
@@ -17,16 +17,19 @@
     <button type="button" class="linkbtn" id="editPet" data-i18n="edit_details"></button>
   </header>
 
-  <div class="card" id="editCard" style="display:none; margin-bottom:16px">
+  <div class="card pet-form-card" id="editCard" style="display:none; margin-bottom:16px">
     <div class="step">
       <h3 data-i18n="edit_details"></h3>
       <div class="petform">
         <input type="text" id="eName" data-i18n-ph="name_label_ph" />
         <select id="eSpecies"></select>
         <input type="text" id="eSpeciesOther" data-i18n-ph="species_other_ph" style="display:none" />
-        <input type="search" id="eBreedSearch" data-i18n-ph="breed_search_ph" style="display:none" />
-        <select id="eBreed" style="display:none"></select>
-        <input type="text" id="eBreedOther" data-i18n-ph="breed_free_ph" style="display:none" />
+        <div class="breed-combobox" id="eBreedBox" style="display:none">
+          <input type="search" id="eBreed" data-i18n-ph="breed_ph" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="eBreedOptions" />
+          <div class="breed-options" id="eBreedOptions" role="listbox" hidden></div>
+        </div>
       </div>
       <div class="rowbtns">
         <button id="savePet" data-i18n="save"></button>
@@ -65,6 +68,7 @@
         <h3 data-i18n="logged_events"></h3>
         <p class="hint" id="logCount"></p>
         <div class="rowbtns">
+          <button class="ghost" id="manualLog" data-i18n="manual_add_log"></button>
           <button id="run" data-i18n="create_report"></button>
           <button class="ghost" id="dlLog" data-i18n="dl_log"></button>
         </div>
@@ -104,10 +108,55 @@
   <p class="note" data-i18n="pet_note"></p>
 </div>
 
+<dialog class="log-dialog" id="logDialog">
+  <form id="logDialogForm">
+    <div class="dialog-head">
+      <div>
+        <h2 data-i18n="log_dialog_title"></h2>
+        <p data-i18n="log_dialog_hint"></p>
+      </div>
+      <button type="button" class="dialog-close" id="closeLogDialog"
+              data-i18n-title="close">×</button>
+    </div>
+    <div class="log-dialog-fields">
+      <label class="ffield">
+        <span data-i18n="f_behavior"></span>
+        <input type="text" data-log-field="behavior_type" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_trigger"></span>
+        <input type="text" data-log-field="trigger" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_when"></span>
+        <input type="text" data-log-field="timestamp" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_duration"></span>
+        <input type="text" data-log-field="duration" />
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_intensity"></span>
+        <input type="number" min="1" max="10" step="1" data-log-field="intensity" />
+        <small data-i18n="intensity_midpoint"></small>
+      </label>
+      <label class="ffield">
+        <span data-i18n="f_recovery"></span>
+        <input type="text" data-log-field="recovery_period" />
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="ghost" id="cancelLogDialog" data-i18n="cancel"></button>
+      <button type="submit" id="saveLogDialog" data-i18n="save_to_log"></button>
+    </div>
+  </form>
+</dialog>
+
 <script src="/db.js"></script>
 <script src="/i18n.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
+<script src="/markdown.js"></script>
 <script>
   const petId = new URLSearchParams(location.search).get("id");
   let pet = null;
@@ -133,8 +182,12 @@
   const sendBtn = document.getElementById("send");
   const sessionSel = document.getElementById("sessionSel");
   const hintEl = document.getElementById("choicehint");
+  const logDialog = document.getElementById("logDialog");
+  const logDialogForm = document.getElementById("logDialogForm");
+  const saveLogDialog = document.getElementById("saveLogDialog");
 
   let session = null;
+  let activeLogDraft = null;
 
   async function refreshSessions(selectId) {
     const sessions = await listSessions(petId);
@@ -189,7 +242,7 @@
   function renderStored(m) {
     if (m.kind === "summary") return renderSummary(JSON.parse(m.content), m.id);
     if (m.role === "user") return renderUser(m);
-    return m.kind === "log" ? bubble(m.content, "assistant") : adviceBubble(m.content);
+    return m.kind === "log" ? bubble(m.content, "assistant") : renderAdvice(m);
   }
 
   function bubble(text, cls) {
@@ -204,37 +257,20 @@
   function adviceBubble(text) {
     const d = document.createElement("div");
     d.className = "msg advice";
-    d.innerHTML = `<span class="pill">${t("advice_pill")}</span>`;
-    const p = document.createElement("div");
-    p.style.whiteSpace = "pre-wrap";
-    p.textContent = text;
-    d.appendChild(p);
+    renderMarkdown(d, text);
     chatlog.appendChild(d);
     chatlog.scrollTop = chatlog.scrollHeight;
     return d;
   }
 
-  // Every message you send carries its own "add to log" decision.
-  function renderUser(m) {
-    const wrap = document.createElement("div");
-    wrap.className = "usergroup";
-    wrap.dataset.msgId = m.id;
-    const d = document.createElement("div");
-    d.className = "msg user";
-    d.textContent = m.content;
-    wrap.appendChild(d);
+  function renderAdvice(m) {
+    const bubble = adviceBubble(m.content);
+    if (m.log_candidate?.detected && !m.log_dismissed) renderEventCard(m);
+    return bubble;
+  }
 
-    const act = document.createElement("div");
-    act.className = "msgactions";
-    if (m.entry_id) {
-      act.innerHTML = `<span class="logged">${t("added_to_log")}</span>`;
-    } else if (m.kind === "advice") {
-      addButton(act, m);
-    }
-    wrap.appendChild(act);
-    chatlog.appendChild(wrap);
-    chatlog.scrollTop = chatlog.scrollHeight;
-    return wrap;
+  function renderUser(m) {
+    return bubble(m.content, "user");
   }
 
   function summaryHTML(r) {
@@ -270,8 +306,10 @@
   function busy(on) { sendBtn.disabled = on; }
   function setHint() { hintEl.textContent = t("hint_free"); }
 
-  async function say(role, kind, content, entry_id = null) {
-    const m = await addMessage(session.id, petId, { role, kind, content, entry_id });
+  async function say(role, kind, content, entry_id = null, log_candidate = null) {
+    const m = await addMessage(session.id, petId, {
+      role, kind, content, entry_id, log_candidate,
+    });
     renderStored(m);
     return m;
   }
@@ -298,7 +336,7 @@
   async function runAdvice() {
     typing(true); busy(true);
     try {
-      // Keep the advice thread coherent: don't feed it the logging Q&A.
+      // Keep the saved advice thread coherent across turns.
       const history = (await listMessages(session.id))
         .filter(m => m.kind === "advice")
         .map(m => ({ role: m.role, content: m.content }));
@@ -309,59 +347,141 @@
       const data = await res.json();
       typing(false);
       if (!res.ok) { bubble(data.error || t("err_generic"), "assistant").classList.add("error"); return; }
-      await say("assistant", "advice", data.reply);
+      await say("assistant", "advice", data.reply, null, data.log_candidate || null);
     } catch {
       typing(false);
       bubble(t("err_unreachable"), "assistant").classList.add("error");
     } finally { busy(false); }
   }
 
-  // Adding to the log is a quiet side-action: no chat messages, no follow-up
-  // questions. One extraction call, the entry is saved, the link says "Added".
-  function addButton(act, m) {
-    act.innerHTML = "";
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "linkbtn";
-    b.textContent = t("add_to_log");
-    b.onclick = () => addToLog(m, act);
-    act.appendChild(b);
+  // A card appears only when the assistant identifies a new concrete event.
+  // The card and its entry share one message ID, so reopening it edits rather
+  // than creating another entry.
+  function renderEventCard(m) {
+    const card = document.createElement("div");
+    card.className = "event-card" + (m.entry_id ? " saved" : "");
+    card.dataset.msgId = m.id;
+
+    const copy = document.createElement("div");
+    copy.className = "event-card-copy";
+    const title = document.createElement("strong");
+    title.textContent = m.entry_id ? t("event_logged_title") : t("event_candidate_title");
+    const summary = document.createElement("span");
+    summary.textContent = m.log_candidate.behavior_type || t("event_fallback");
+    copy.appendChild(title);
+    copy.appendChild(summary);
+    card.appendChild(copy);
+
+    const actions = document.createElement("div");
+    actions.className = "event-card-actions";
+    if (m.entry_id) {
+      const view = document.createElement("button");
+      view.type = "button";
+      view.className = "ghost";
+      view.textContent = t("view_log");
+      view.onclick = () => openCandidateLog(m);
+      actions.appendChild(view);
+    } else {
+      const dismiss = document.createElement("button");
+      dismiss.type = "button";
+      dismiss.className = "ghost";
+      dismiss.textContent = t("not_now");
+      dismiss.onclick = async () => {
+        m.log_dismissed = true;
+        await updateMessage(m.id, { log_dismissed: true });
+        card.remove();
+      };
+      const complete = document.createElement("button");
+      complete.type = "button";
+      complete.textContent = t("complete_and_log");
+      complete.onclick = () => openCandidateLog(m);
+      actions.appendChild(dismiss);
+      actions.appendChild(complete);
+    }
+    card.appendChild(actions);
+    chatlog.appendChild(card);
+    chatlog.scrollTop = chatlog.scrollHeight;
+    return card;
   }
 
-  async function addToLog(m, act) {
-    act.innerHTML = `<span class="logged">${t("adding")}</span>`;
-    try {
-      const res = await fetch("/.netlify/functions/chat", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: m.content }],
-          pet: petContext(), lang: langNow(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) { addFailed(act, m); return; }
+  async function openCandidateLog(m) {
+    let record = m.log_candidate;
+    if (m.entry_id) {
+      const entry = await getEntry(m.entry_id);
+      if (entry) record = entry;
+      else {
+        m.entry_id = null;
+        await markMessageLogged(m.id, null);
+      }
+    }
+    openLogDialog(m, record);
+  }
 
-      const entry = await addEntry(petId, data);
-      await markMessageLogged(m.id, entry.id);
-      act.innerHTML = `<span class="logged">${t("added_to_log")}</span>`;
+  function openLogDialog(m, record = {}) {
+    activeLogDraft = { message: m };
+    logDialog.querySelectorAll("[data-log-field]").forEach(field => {
+      field.value = record[field.dataset.logField] ?? "";
+    });
+    logDialog.showModal();
+    logDialog.querySelector('[data-log-field="behavior_type"]').focus();
+  }
+
+  function closeLogDialog() {
+    if (logDialog.open) logDialog.close();
+  }
+
+  document.getElementById("closeLogDialog").onclick = closeLogDialog;
+  document.getElementById("cancelLogDialog").onclick = closeLogDialog;
+  logDialog.addEventListener("close", () => { activeLogDraft = null; });
+  logDialog.addEventListener("click", event => {
+    if (event.target !== logDialog) return;
+    const rect = logDialog.getBoundingClientRect();
+    const inside = event.clientX >= rect.left && event.clientX <= rect.right &&
+      event.clientY >= rect.top && event.clientY <= rect.bottom;
+    if (!inside) closeLogDialog();
+  });
+
+  logDialogForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (!activeLogDraft || saveLogDialog.disabled) return;
+
+    const fields = {};
+    logDialog.querySelectorAll("[data-log-field]").forEach(field => {
+      fields[field.dataset.logField] = field.value.trim();
+    });
+    if (!fields.behavior_type) {
+      alert(t("behavior_required"));
+      logDialog.querySelector('[data-log-field="behavior_type"]').focus();
+      return;
+    }
+    if (fields.intensity !== "" &&
+        !(Number.isInteger(Number(fields.intensity)) &&
+          Number(fields.intensity) >= 1 && Number(fields.intensity) <= 10)) {
+      alert(t("bad_intensity"));
+      logDialog.querySelector('[data-log-field="intensity"]').focus();
+      return;
+    }
+
+    const draft = activeLogDraft;
+    saveLogDialog.disabled = true;
+    try {
+      const entry = draft.message
+        ? await saveEntryForMessage(petId, draft.message.id, fields)
+        : await addEntry(petId, fields);
+      if (!entry) throw new Error("No log entry was saved.");
+      if (draft.message) draft.message.entry_id = entry.id;
+      closeLogDialog();
       await refreshMeta();
       await renderEntries();
+      if (draft.message && session) await openSession(session.id);
     } catch {
-      addFailed(act, m);
+      alert(t("save_log_failed"));
+    } finally {
+      saveLogDialog.disabled = false;
     }
-  }
+  });
 
-  // Surface the failure on the message itself rather than as a chat message.
-  function addFailed(act, m) {
-    act.innerHTML = "";
-    const span = document.createElement("span");
-    span.className = "error";
-    span.textContent = t("add_failed") + " ";
-    const retry = document.createElement("button");
-    retry.type = "button"; retry.className = "linkbtn"; retry.textContent = t("retry");
-    retry.onclick = () => addToLog(m, act);
-    act.appendChild(span); act.appendChild(retry);
-  }
+  document.getElementById("manualLog").onclick = () => openLogDialog(null, {});
 
   input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = input.scrollHeight + "px"; });
   input.addEventListener("keydown", e => {
@@ -469,6 +589,7 @@
         await deleteEntry(e.id);
         await renderEntries();
         await refreshMeta();
+        if (session) await openSession(session.id);
       };
       el.appendChild(item);
     }
@@ -584,9 +705,9 @@
   const petForm = wireSpeciesBreed({
     speciesSel: document.getElementById("eSpecies"),
     speciesOther: document.getElementById("eSpeciesOther"),
-    breedSearch: document.getElementById("eBreedSearch"),
-    breedSel: document.getElementById("eBreed"),
-    breedOther: document.getElementById("eBreedOther"),
+    breedBox: document.getElementById("eBreedBox"),
+    breedInput: document.getElementById("eBreed"),
+    breedList: document.getElementById("eBreedOptions"),
   });
   const editCard = document.getElementById("editCard");
 
@@ -623,7 +744,7 @@
   // Everything that reflects the pet's name/species, in one place so an edit
   // updates the whole page.
   function applyPet() {
-    document.title = `${pet.name} · Behavior Journal`;
+    document.title = `${pet.name} · ${t("app_title")}`;
     document.getElementById("petname").textContent = pet.name;
     input.placeholder = t("chat_ph", { name: pet.name });
   }

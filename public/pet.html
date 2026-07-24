@@ -68,7 +68,6 @@
         <h3 data-i18n="logged_events"></h3>
         <p class="hint" id="logCount"></p>
         <div class="rowbtns">
-          <button class="ghost" id="manualLog" data-i18n="manual_add_log"></button>
           <button id="run" data-i18n="create_report"></button>
           <button class="ghost" id="dlLog" data-i18n="dl_log"></button>
         </div>
@@ -242,7 +241,7 @@
   function renderStored(m) {
     if (m.kind === "summary") return renderSummary(JSON.parse(m.content), m.id);
     if (m.role === "user") return renderUser(m);
-    return m.kind === "log" ? bubble(m.content, "assistant") : renderAdvice(m);
+    return m.kind === "log" ? bubble(m.content, "assistant") : adviceBubble(m.content);
   }
 
   function bubble(text, cls) {
@@ -263,14 +262,27 @@
     return d;
   }
 
-  function renderAdvice(m) {
-    const bubble = adviceBubble(m.content);
-    if (m.log_candidate?.detected && !m.log_dismissed) renderEventCard(m);
-    return bubble;
-  }
-
+  // Every message you send carries its own "add to log" decision.
   function renderUser(m) {
-    return bubble(m.content, "user");
+    const wrap = document.createElement("div");
+    wrap.className = "usergroup";
+    wrap.dataset.msgId = m.id;
+    const d = document.createElement("div");
+    d.className = "msg user";
+    d.textContent = m.content;
+    wrap.appendChild(d);
+
+    const act = document.createElement("div");
+    act.className = "msgactions";
+    if (m.entry_id) {
+      loggedButton(act, m);
+    } else if (m.kind === "advice") {
+      addButton(act, m);
+    }
+    wrap.appendChild(act);
+    chatlog.appendChild(wrap);
+    chatlog.scrollTop = chatlog.scrollHeight;
+    return wrap;
   }
 
   function summaryHTML(r) {
@@ -306,10 +318,8 @@
   function busy(on) { sendBtn.disabled = on; }
   function setHint() { hintEl.textContent = t("hint_free"); }
 
-  async function say(role, kind, content, entry_id = null, log_candidate = null) {
-    const m = await addMessage(session.id, petId, {
-      role, kind, content, entry_id, log_candidate,
-    });
+  async function say(role, kind, content, entry_id = null) {
+    const m = await addMessage(session.id, petId, { role, kind, content, entry_id });
     renderStored(m);
     return m;
   }
@@ -336,7 +346,7 @@
   async function runAdvice() {
     typing(true); busy(true);
     try {
-      // Keep the saved advice thread coherent across turns.
+      // Keep the advice thread coherent: don't feed it the logging Q&A.
       const history = (await listMessages(session.id))
         .filter(m => m.kind === "advice")
         .map(m => ({ role: m.role, content: m.content }));
@@ -347,78 +357,74 @@
       const data = await res.json();
       typing(false);
       if (!res.ok) { bubble(data.error || t("err_generic"), "assistant").classList.add("error"); return; }
-      await say("assistant", "advice", data.reply, null, data.log_candidate || null);
+      await say("assistant", "advice", data.reply);
     } catch {
       typing(false);
       bubble(t("err_unreachable"), "assistant").classList.add("error");
     } finally { busy(false); }
   }
 
-  // A card appears only when the assistant identifies a new concrete event.
-  // The card and its entry share one message ID, so reopening it edits rather
-  // than creating another entry.
-  function renderEventCard(m) {
-    const card = document.createElement("div");
-    card.className = "event-card" + (m.entry_id ? " saved" : "");
-    card.dataset.msgId = m.id;
-
-    const copy = document.createElement("div");
-    copy.className = "event-card-copy";
-    const title = document.createElement("strong");
-    title.textContent = m.entry_id ? t("event_logged_title") : t("event_candidate_title");
-    const summary = document.createElement("span");
-    summary.textContent = m.log_candidate.behavior_type || t("event_fallback");
-    copy.appendChild(title);
-    copy.appendChild(summary);
-    card.appendChild(copy);
-
-    const actions = document.createElement("div");
-    actions.className = "event-card-actions";
-    if (m.entry_id) {
-      const view = document.createElement("button");
-      view.type = "button";
-      view.className = "ghost";
-      view.textContent = t("view_log");
-      view.onclick = () => openCandidateLog(m);
-      actions.appendChild(view);
-    } else {
-      const dismiss = document.createElement("button");
-      dismiss.type = "button";
-      dismiss.className = "ghost";
-      dismiss.textContent = t("not_now");
-      dismiss.onclick = async () => {
-        m.log_dismissed = true;
-        await updateMessage(m.id, { log_dismissed: true });
-        card.remove();
-      };
-      const complete = document.createElement("button");
-      complete.type = "button";
-      complete.textContent = t("complete_and_log");
-      complete.onclick = () => openCandidateLog(m);
-      actions.appendChild(dismiss);
-      actions.appendChild(complete);
-    }
-    card.appendChild(actions);
-    chatlog.appendChild(card);
-    chatlog.scrollTop = chatlog.scrollHeight;
-    return card;
+  // Logging is separate from the conversation: extract what is already known,
+  // let the owner review every field in a dialog, then save exactly one entry
+  // linked to the source message.
+  function addButton(act, m) {
+    act.innerHTML = "";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "linkbtn";
+    b.textContent = t("add_to_log");
+    b.onclick = () => prepareLog(m, act);
+    act.appendChild(b);
   }
 
-  async function openCandidateLog(m) {
-    let record = m.log_candidate;
-    if (m.entry_id) {
-      const entry = await getEntry(m.entry_id);
-      if (entry) record = entry;
-      else {
-        m.entry_id = null;
-        await markMessageLogged(m.id, null);
+  function loggedButton(act, m) {
+    act.innerHTML = "";
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "linkbtn logged";
+    b.textContent = t("added_edit_log");
+    b.onclick = () => editLinkedLog(m, act);
+    act.appendChild(b);
+  }
+
+  async function prepareLog(m, act) {
+    act.innerHTML = `<span class="logged">${t("adding")}</span>`;
+    try {
+      const thread = (await listMessages(session.id)).filter(message => message.kind === "advice");
+      const targetIndex = thread.findIndex(message => message.id === m.id);
+      const context = (targetIndex >= 0 ? thread.slice(0, targetIndex + 1) : [m])
+        .slice(-12)
+        .map(message => ({ role: message.role, content: message.content }));
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ messages: context }),
+      });
+      const data = await res.json();
+      if (!res.ok) { addFailed(act, m); return; }
+      if (!data.has_observation) {
+        act.innerHTML = `<span class="logged">${t("nothing_to_log")}</span>`;
+        return;
       }
+      addButton(act, m);
+      openLogDialog(m, act, data);
+    } catch {
+      addFailed(act, m);
     }
-    openLogDialog(m, record);
   }
 
-  function openLogDialog(m, record = {}) {
-    activeLogDraft = { message: m };
+  async function editLinkedLog(m, act) {
+    const entry = await getEntry(m.entry_id);
+    if (!entry) {
+      m.entry_id = null;
+      await markMessageLogged(m.id, null);
+      addButton(act, m);
+      return;
+    }
+    openLogDialog(m, act, entry);
+  }
+
+  function openLogDialog(m, act, record) {
+    activeLogDraft = { message: m, action: act };
     logDialog.querySelectorAll("[data-log-field]").forEach(field => {
       field.value = record[field.dataset.logField] ?? "";
     });
@@ -465,15 +471,13 @@
     const draft = activeLogDraft;
     saveLogDialog.disabled = true;
     try {
-      const entry = draft.message
-        ? await saveEntryForMessage(petId, draft.message.id, fields)
-        : await addEntry(petId, fields);
+      const entry = await saveEntryForMessage(petId, draft.message.id, fields);
       if (!entry) throw new Error("No log entry was saved.");
-      if (draft.message) draft.message.entry_id = entry.id;
+      draft.message.entry_id = entry.id;
+      loggedButton(draft.action, draft.message);
       closeLogDialog();
       await refreshMeta();
       await renderEntries();
-      if (draft.message && session) await openSession(session.id);
     } catch {
       alert(t("save_log_failed"));
     } finally {
@@ -481,7 +485,17 @@
     }
   });
 
-  document.getElementById("manualLog").onclick = () => openLogDialog(null, {});
+  // Surface the failure on the message itself rather than as a chat message.
+  function addFailed(act, m) {
+    act.innerHTML = "";
+    const span = document.createElement("span");
+    span.className = "error";
+    span.textContent = t("add_failed") + " ";
+    const retry = document.createElement("button");
+    retry.type = "button"; retry.className = "linkbtn"; retry.textContent = t("retry");
+    retry.onclick = () => prepareLog(m, act);
+    act.appendChild(span); act.appendChild(retry);
+  }
 
   input.addEventListener("input", () => { input.style.height = "auto"; input.style.height = input.scrollHeight + "px"; });
   input.addEventListener("keydown", e => {

@@ -84,14 +84,14 @@ Pages (`public/`):
 - `pet.html?id=…` — a pet's workspace, with three tabs:
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
     (with a "＋ New chat" for a fresh topic, like any LLM chat app). Chat is
-    advice by default and **nothing is saved to the log unless you say so**.
-    When the assistant recognizes a new concrete event, one compact event card
-    appears after the reply. **Review & record** opens a small form prefilled
-    with details already mentioned; **Not now** dismisses it. Ordinary questions
-    have no logging controls.
+    advice by default and **nothing is saved to the log unless you say so**:
+    every message you send carries its own **"＋ Complete & add to log"** action.
+    It extracts the details already mentioned, opens a small review form for
+    any corrections or missing fields, and saves exactly one entry linked to
+    that source message. The same control then becomes **"✓ Added · View/edit"**.
   - **Log** — every entry added from chat, newest first, each **editable** (fill
     in what the message didn't mention, or correct it — a blank field records as
-    "not recorded") and deletable. Events can also be added manually here, plus
+    "not recorded") and deletable, plus
     **Create report**: a narrative on the pet's **history and where things
     stand now**, a behavioral profile and proportionate next steps — savable
     to Documents or downloadable as `.txt`. The report is generated from the
@@ -115,13 +115,12 @@ and switching languages never rewrites your data.
 Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**
 
-- `chat.js` — a one-shot structured extraction endpoint retained for compatibility.
+- `chat.js` — logging; calls Claude with a forced tool for clean structured output.
 - `analyze.js` — computes the patterns deterministically (a JS port of
   `analyze_behavior_log.py`), then has Claude write the narrative report.
-- `advise.js` — general pet chat: returns both the direct conversational reply
-  and an optional structured event candidate in one call, without turning the
-  conversation into a logging questionnaire. It gives **non-diagnostic** help
-  with clear emergency signposting.
+- `advise.js` — general pet chat: answers ordinary questions directly without
+  turning the conversation into a logging questionnaire, and gives
+  **non-diagnostic** help with clear emergency signposting.
 
 ### Where your data lives
 

@@ -9,8 +9,7 @@
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
 //   attachments { id, pet_id, name, type, size, blob, created_at }
 //   sessions    { id, pet_id, title, created_at, updated_at }
-//   messages    { id, session_id, pet_id, role, kind, content, entry_id,
-//                 log_candidate, log_dismissed, created_at }
+//   messages    { id, session_id, pet_id, role, kind, content, entry_id, created_at }
 
 const DB_NAME = "pet_journal";
 const DB_VERSION = 2;
@@ -250,12 +249,10 @@ async function listMessages(sessionId) {
 }
 // kind: "advice" (free chat). "log"/"summary" are legacy kinds from the older
 // interview-style flow — still rendered so old chats read correctly.
-async function addMessage(sessionId, petId, {
-  role, kind, content, entry_id = null, log_candidate = null,
-}) {
+async function addMessage(sessionId, petId, { role, kind, content, entry_id = null }) {
   const msg = {
     id: uid(), session_id: sessionId, pet_id: petId, role, kind, content,
-    entry_id, log_candidate, log_dismissed: false, created_at: new Date().toISOString(),
+    entry_id, created_at: new Date().toISOString(),
   };
   await tx("messages", "readwrite", s => s.put(msg));
   return msg;

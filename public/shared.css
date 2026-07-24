@@ -136,7 +136,7 @@ button.ghost { background: transparent; color: var(--accent); border: 1px solid 
 .scale button { background: var(--card); color: var(--ink); border: 1px solid var(--line); width: 44px; padding: 10px 0; text-align: center; }
 .scale button:hover { border-color: var(--accent); }
 .hint { color: var(--muted); font-size: 0.88rem; margin: 6px 0 0; }
-.rowbtns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.rowbtns { display: flex; gap: 8px; margin-top: 14px; }
 
 /* Report output */
 .report { white-space: pre-wrap; font-size: 0.95rem; padding: 20px; overflow-x: auto; }
@@ -209,32 +209,16 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .sessionbar select { flex: 1; min-width: 0; padding: 8px 12px; padding-right: 32px; font-size: 0.9rem; }
 .sessionbar button { padding: 8px 12px; font-size: 0.86rem; white-space: nowrap; }
 
+/* Per-message "add to log" decision */
+.usergroup { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.msgactions { font-size: 0.78rem; padding-right: 4px; }
 .linkbtn {
   background: none; border: none; padding: 0; font: inherit; font-size: 0.78rem;
   color: var(--accent); cursor: pointer; text-decoration: underline;
 }
 .linkbtn:hover { opacity: 0.8; }
+.logged { color: var(--muted); }
 .choicehint { color: var(--muted); font-size: 0.82rem; padding: 0 16px 12px; text-align: center; }
-
-/* One event card per concrete occurrence detected in the conversation. */
-.event-card {
-  align-self: stretch; display: flex; align-items: center; justify-content: space-between;
-  gap: 14px; margin-top: -4px; padding: 13px 14px; border: 1px solid var(--accent);
-  border-radius: 13px; background: var(--accent-soft);
-}
-.event-card.saved { border-color: var(--line); background: var(--card); }
-.event-card-copy { display: flex; flex-direction: column; min-width: 0; }
-.event-card-copy strong { font-size: 0.9rem; }
-.event-card-copy span {
-  overflow: hidden; color: var(--muted); font-size: 0.84rem;
-  text-overflow: ellipsis; white-space: nowrap;
-}
-.event-card-actions { display: flex; gap: 7px; flex: 0 0 auto; }
-.event-card-actions button { padding: 7px 10px; font-size: 0.8rem; white-space: nowrap; }
-@media (max-width: 520px) {
-  .event-card { align-items: stretch; flex-direction: column; }
-  .event-card-actions { justify-content: flex-end; }
-}
 
 /* Review extracted observation details before creating one log entry. */
 .log-dialog {

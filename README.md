@@ -93,9 +93,9 @@ Pages (`public/`):
     in what the message didn't mention, or correct it — a blank field records as
     "not recorded") and deletable, plus
     **Create report**: a narrative on the pet's **history and where things
-    stand now**, a behavioral profile and questions for your vet — savable to
-    Documents or downloadable as `.txt`. The report is generated from the log,
-    so the two live together.
+    stand now**, a behavioral profile and proportionate next steps — savable
+    to Documents or downloadable as `.txt`. The report is generated from the
+    log, so the two live together.
   - **Documents** — write notes (vet visits, medication, diet), attach files
     (photos, paperwork), and keep saved reports.
 
@@ -118,9 +118,9 @@ environment variable and is never sent to the browser:**
 - `chat.js` — logging; calls Claude with a forced tool for clean structured output.
 - `analyze.js` — computes the patterns deterministically (a JS port of
   `analyze_behavior_log.py`), then has Claude write the narrative report.
-- `advise.js` — the "just ask" path: warm, practical, **non-diagnostic** help with
-  clear signposting about when to involve a vet or trainer, and emergencies
-  pointed straight at a professional.
+- `advise.js` — general pet chat: answers ordinary questions directly, asks one
+  useful detail after a specific behavior when appropriate, and gives
+  **non-diagnostic** help with clear emergency signposting.
 
 ### Where your data lives
 

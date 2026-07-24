@@ -330,15 +330,21 @@
   async function addToLog(m, act) {
     act.innerHTML = `<span class="logged">${t("adding")}</span>`;
     try {
+      const thread = (await listMessages(session.id)).filter(message => message.kind === "advice");
+      const targetIndex = thread.findIndex(message => message.id === m.id);
+      const context = (targetIndex >= 0 ? thread.slice(0, targetIndex + 1) : [m])
+        .slice(-12)
+        .map(message => ({ role: message.role, content: message.content }));
       const res = await fetch("/.netlify/functions/chat", {
         method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: m.content }],
-          pet: petContext(), lang: langNow(),
-        }),
+        body: JSON.stringify({ messages: context }),
       });
       const data = await res.json();
       if (!res.ok) { addFailed(act, m); return; }
+      if (!data.has_observation) {
+        act.innerHTML = `<span class="logged">${t("nothing_to_log")}</span>`;
+        return;
+      }
 
       const entry = await addEntry(petId, data);
       await markMessageLogged(m.id, entry.id);

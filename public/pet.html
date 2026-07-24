@@ -111,6 +111,7 @@
 <script src="/i18n.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
+<script src="/markdown.js"></script>
 <script>
   const petId = new URLSearchParams(location.search).get("id");
   let pet = null;
@@ -207,7 +208,7 @@
   function adviceBubble(text) {
     const d = document.createElement("div");
     d.className = "msg advice";
-    d.textContent = text;
+    renderMarkdown(d, text);
     chatlog.appendChild(d);
     chatlog.scrollTop = chatlog.scrollHeight;
     return d;

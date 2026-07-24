@@ -219,7 +219,32 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .linkbtn:hover { opacity: 0.8; }
 .logged { color: var(--muted); }
 .choicehint { color: var(--muted); font-size: 0.82rem; padding: 0 16px 12px; text-align: center; }
-.msg.advice { background: transparent; border: 1px solid var(--line); align-self: stretch; max-width: 100%; }
+.msg.advice {
+  background: transparent; border: 1px solid var(--line); align-self: stretch;
+  max-width: 100%; white-space: normal;
+}
+.msg.advice > :first-child { margin-top: 0; }
+.msg.advice > :last-child { margin-bottom: 0; }
+.msg.advice p { margin: 0 0 0.8em; }
+.msg.advice h3, .msg.advice h4, .msg.advice h5, .msg.advice h6 {
+  margin: 1em 0 0.4em; font-size: 1rem; line-height: 1.35;
+}
+.msg.advice ul, .msg.advice ol { margin: 0.35em 0 0.8em; padding-left: 1.45em; }
+.msg.advice li + li { margin-top: 0.25em; }
+.msg.advice a { color: var(--accent); }
+.msg.advice code {
+  padding: 0.1em 0.35em; border-radius: 5px; background: var(--accent-soft);
+  font: 0.9em ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.msg.advice pre {
+  margin: 0.5em 0 0.8em; padding: 10px 12px; overflow-x: auto;
+  border-radius: 8px; background: var(--accent-soft); white-space: pre;
+}
+.msg.advice pre code { padding: 0; background: transparent; }
+.msg.advice blockquote {
+  margin: 0.5em 0 0.8em; padding-left: 0.8em; color: var(--muted);
+  border-left: 3px solid var(--line);
+}
 @media (prefers-reduced-motion: reduce) {
   .tile, .petrow .avatar, nav.tabs.backnav a { transition: none; }
   .tile:hover, .tile:focus-visible,

@@ -23,6 +23,7 @@
           <option value="" disabled selected>Species…</option>
         </select>
         <input type="text" id="speciesOther" data-i18n-ph="species_other_ph" style="display:none" />
+        <input type="search" id="breedSearch" data-i18n-ph="breed_search_ph" style="display:none" />
         <select id="breed" style="display:none"></select>
         <input type="text" id="breedOther" data-i18n-ph="breed_free_ph" style="display:none" />
       </div>
@@ -45,6 +46,7 @@
   const form = wireSpeciesBreed({
     speciesSel: document.getElementById("species"),
     speciesOther: document.getElementById("speciesOther"),
+    breedSearch: document.getElementById("breedSearch"),
     breedSel: document.getElementById("breed"),
     breedOther: document.getElementById("breedOther"),
   });

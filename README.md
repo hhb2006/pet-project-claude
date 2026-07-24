@@ -118,9 +118,10 @@ environment variable and is never sent to the browser:**
 - `chat.js` — logging; calls Claude with a forced tool for clean structured output.
 - `analyze.js` — computes the patterns deterministically (a JS port of
   `analyze_behavior_log.py`), then has Claude write the narrative report.
-- `advise.js` — general pet chat: answers ordinary questions directly, asks one
-  useful detail after a specific behavior when appropriate, and gives
-  **non-diagnostic** help with clear emergency signposting.
+- `advise.js` — general pet chat: answers ordinary questions directly, invites
+  the owner to provide any missing observation details after a specific behavior
+  when appropriate, and gives **non-diagnostic** help with clear emergency
+  signposting.
 
 ### Where your data lives
 

@@ -615,6 +615,7 @@
           if (event.type === "thinking") thinking += event.delta || "";
           if (event.type === "answer") answer += event.delta || "";
           if (event.type === "error") streamError = event.error || t("err_generic");
+          if (event.type === "timeout") streamError = t("stream_timeout");
           queueRefresh();
         }
         if (done) break;
@@ -633,7 +634,9 @@
       busy(false);
 
       if (!generation.discard && session.id === generation.sessionId && (answer || thinking || stopped)) {
-        const finalAnswer = answer || (stopped ? t("generation_stopped") : streamError || t("err_generic"));
+        const finalAnswer = answer
+          ? answer + (streamError ? `\n\n_${streamError}_` : "")
+          : (stopped ? t("generation_stopped") : streamError || t("err_generic"));
         await say("assistant", "advice", finalAnswer, {
           parent_id: parentUser.id,
           thinking,

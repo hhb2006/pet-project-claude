@@ -42,7 +42,7 @@ export default async function adviseStream(request) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2048,
+        max_tokens: 1024,
         system: SYSTEM_PROMPT + langNote(body.lang),
         messages: addPetContext(messages, body.pet),
         thinking: { type: "enabled" },
@@ -62,15 +62,34 @@ export default async function adviseStream(request) {
   const reader = upstream.body.getReader();
   const decoder = new TextDecoder();
   let pending = "";
+  let finished = false;
+  let timeoutId;
+  const finish = controller => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timeoutId);
+    controller.enqueue(line({ type: "done" }));
+    controller.close();
+  };
 
   const stream = new ReadableStream({
+    start(controller) {
+      // Netlify can terminate very long Edge responses before the final frame.
+      // Close cleanly first so the browser keeps all deltas it already received.
+      timeoutId = setTimeout(() => {
+        if (finished) return;
+        controller.enqueue(line({ type: "timeout" }));
+        finish(controller);
+        reader.cancel().catch(() => {});
+      }, 45000);
+    },
     async pull(controller) {
+      if (finished) return;
       try {
         const { done, value } = await reader.read();
         if (done) {
           flushSse(pending, controller);
-          controller.enqueue(line({ type: "done" }));
-          controller.close();
+          finish(controller);
           return;
         }
         pending += decoder.decode(value, { stream: true });
@@ -78,11 +97,14 @@ export default async function adviseStream(request) {
         pending = frames.pop() || "";
         for (const frame of frames) flushSse(frame, controller);
       } catch (error) {
+        if (finished) return;
         controller.enqueue(line({ type: "error", error: String(error) }));
-        controller.close();
+        finish(controller);
       }
     },
     cancel() {
+      finished = true;
+      clearTimeout(timeoutId);
       reader.cancel().catch(() => {});
     },
   });

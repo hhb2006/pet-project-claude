@@ -932,7 +932,7 @@
       item.className = "docitem";
       item.innerHTML = `
         <h4>🐾 ${esc(fmt(e.behavior_type))}</h4>
-        <div class="meta">${fmtDate(e.logged_at)}${e.edited_at ? " · " + t("edited") : ""}${e.trigger ? " · " + t("trigger_label") + ": " + esc(e.trigger) : ""}</div>
+        <div class="meta">${fmtDateTime(e.logged_at)}${e.edited_at ? " · " + t("edited") : ""}${e.trigger ? " · " + t("trigger_label") + ": " + esc(e.trigger) : ""}</div>
         <dl class="entryfields">
           <dt>${t("f_when")}</dt><dd>${esc(fmt(e.timestamp))}</dd>
           <dt>${t("f_duration")}</dt><dd>${esc(fmt(e.duration))}</dd>

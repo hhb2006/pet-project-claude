@@ -276,6 +276,20 @@ function fmtDate(iso) {
   try { return new Date(iso).toLocaleDateString(locale, { year: "numeric", month: "short", day: "numeric" }); }
   catch { return iso; }
 }
+function fmtDateTime(iso) {
+  const locale = getLang() === "zh" ? "zh-CN" : undefined;
+  try {
+    return new Date(iso).toLocaleString(locale, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return iso;
+  }
+}
 function fmtDateLong(d) {
   const locale = getLang() === "zh" ? "zh-CN" : undefined;
   return d.toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" });

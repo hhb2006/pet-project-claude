@@ -113,6 +113,7 @@ exports.handler = async (event) => {
       body: JSON.stringify({
         model,
         max_tokens: 1024,
+        thinking: { type: "disabled" },
         system: SYSTEM_PROMPT,
         tools: [TOOL],
         tool_choice: { type: "tool", name: "record_event" },

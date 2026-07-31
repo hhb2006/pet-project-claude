@@ -115,28 +115,35 @@ and switching languages never rewrites your data.
 Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**
 
-- `chat.js` — logging; calls Claude with a forced tool for clean structured output.
+- `chat.js` — logging; calls the configured model with a forced tool for clean
+  structured output.
 - `analyze.js` — computes the patterns deterministically (a JS port of
-  `analyze_behavior_log.py`), then has Claude write the narrative report.
+  `analyze_behavior_log.py`), then has the configured model write the narrative
+  report.
 - `advise.js` — general pet chat: answers ordinary questions directly without
   turning the conversation into a logging questionnaire, and gives
   **non-diagnostic** help with clear emergency signposting.
 
-The functions also support DeepSeek's Anthropic-compatible API. For local
-development, use one of these configurations in the ignored `.env` file:
+The committed defaults in `netlify/lib/llm-defaults.json` use DeepSeek's
+Anthropic-compatible API and `deepseek-v4-flash`. For local development, the
+ignored `.env` only needs the private key:
 
 ```env
-# Anthropic (the base URL and model are optional defaults)
-ANTHROPIC_API_KEY=sk-ant-...
-
-# DeepSeek
 ANTHROPIC_API_KEY=your-deepseek-key
-ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
-ANTHROPIC_MODEL=deepseek-v4-pro
 ```
 
-Set the same three variables in the relevant Netlify deploy context when using
-DeepSeek in a Deploy Preview or production. Never commit `.env`.
+All three existing environment variables remain supported. To test another
+Anthropic-compatible endpoint or model without changing the committed defaults,
+override either value locally or in Netlify:
+
+```env
+ANTHROPIC_BASE_URL=https://another-compatible-provider.example
+ANTHROPIC_MODEL=another-model
+```
+
+Environment variables take precedence over the committed defaults. In Netlify,
+store `ANTHROPIC_API_KEY` as a secret environment variable; add the other two
+only when an environment needs an override. Never commit `.env`.
 
 ### Where your data lives
 

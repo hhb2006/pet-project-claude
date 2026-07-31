@@ -576,16 +576,6 @@
     let thinking = "";
     let answer = "";
     let streamError = "";
-    let renderFrame = null;
-
-    const refreshPending = () => {
-      renderFrame = null;
-      updateStreamingReply(pending, thinking, answer, startedAt);
-    };
-    const queueRefresh = () => {
-      if (renderFrame !== null) return;
-      renderFrame = requestAnimationFrame(refreshPending);
-    };
 
     try {
       const history = activePath
@@ -608,11 +598,17 @@
         for (const raw of lines) {
           if (!raw.trim()) continue;
           const event = JSON.parse(raw);
-          if (event.type === "thinking") thinking += event.delta || "";
-          if (event.type === "answer") answer += event.delta || "";
+          if (event.type === "thinking") {
+            thinking += event.delta || "";
+            pending.queuedThinking += event.delta || "";
+          }
+          if (event.type === "answer") {
+            answer += event.delta || "";
+            pending.queuedAnswer += event.delta || "";
+          }
           if (event.type === "error") streamError = chatFailureMessage(event);
           if (event.type === "timeout") streamError = t("stream_timeout");
-          queueRefresh();
+          queueStreamingFlush(pending, startedAt);
         }
         if (done) break;
       }
@@ -620,11 +616,8 @@
     } catch (error) {
       if (error.name !== "AbortError") streamError = error.message || t("err_unreachable");
     } finally {
-      if (renderFrame !== null) {
-        cancelAnimationFrame(renderFrame);
-        refreshPending();
-      }
-      pending.remove();
+      if (pending.flushTimer !== null) clearTimeout(pending.flushTimer);
+      flushStreamingReply(pending, startedAt);
       const stopped = controller.signal.aborted;
       if (activeGeneration === generation) activeGeneration = null;
       busy(false);
@@ -633,13 +626,18 @@
         const finalAnswer = answer
           ? answer + (streamError ? `\n\n_${streamError}_` : "")
           : (stopped ? t("generation_stopped") : streamError || t("err_generic"));
-        await say("assistant", "advice", finalAnswer, {
+        const savedMessage = await say("assistant", "advice", finalAnswer, {
           parent_id: parentUser.id,
           thinking,
           thought_seconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+          render: false,
         });
+        finalizeStreamingReply(pending, savedMessage);
       } else if (!generation.discard && session.id === generation.sessionId && streamError && !stopped) {
+        pending.wrap.remove();
         renderGenerationError(streamError, parentUser);
+      } else {
+        pending.wrap.remove();
       }
     }
   }
@@ -701,44 +699,107 @@
     wrap.className = "assistantgroup streaming";
     const bubbleElement = document.createElement("div");
     bubbleElement.className = "msg advice";
-    bubbleElement.innerHTML = `<div class="stream-status">${t("thinking")}</div>`;
+    const status = document.createElement("div");
+    status.className = "stream-status";
+    status.textContent = t("thinking");
+
+    const details = document.createElement("details");
+    details.className = "thinking-panel stream-content";
+    details.hidden = true;
+    const summary = document.createElement("summary");
+    summary.textContent = t("thinking");
+    const thinkingBody = document.createElement("div");
+    thinkingBody.className = "thinking-body streaming-text";
+    const thinkingText = document.createTextNode("");
+    thinkingBody.appendChild(thinkingText);
+    details.append(summary, thinkingBody);
+
+    const answerElement = document.createElement("div");
+    answerElement.className = "advice-answer streaming-text";
+    answerElement.hidden = true;
+    const answerText = document.createTextNode("");
+    answerElement.appendChild(answerText);
+    bubbleElement.append(status, details, answerElement);
+
     const actions = document.createElement("div");
     actions.className = "msgactions assistant-actions";
     appendAction(actions, t("stop_generating"), () => controller.abort(), "stop-generation");
     wrap.append(bubbleElement, actions);
     chatlog.appendChild(wrap);
     chatlog.scrollTop = chatlog.scrollHeight;
-    return wrap;
+    return {
+      wrap,
+      bubbleElement,
+      status,
+      details,
+      summary,
+      thinkingText,
+      answerElement,
+      answerText,
+      actions,
+      queuedThinking: "",
+      queuedAnswer: "",
+      flushTimer: null,
+      hasThinking: false,
+      hasAnswer: false,
+    };
   }
 
-  function updateStreamingReply(wrap, thinking, answer, startedAt) {
-    const bubbleElement = wrap.querySelector(".msg.advice");
-    bubbleElement.innerHTML = "";
-    if (thinking) {
-      const details = document.createElement("details");
-      details.className = "thinking-panel";
-      details.open = !answer;
-      const summary = document.createElement("summary");
+  function queueStreamingFlush(pending, startedAt) {
+    if (pending.flushTimer !== null) return;
+    pending.flushTimer = setTimeout(() => flushStreamingReply(pending, startedAt), 100);
+  }
+
+  function flushStreamingReply(pending, startedAt) {
+    if (pending.flushTimer !== null) clearTimeout(pending.flushTimer);
+    pending.flushTimer = null;
+    if (!pending.queuedThinking && !pending.queuedAnswer) return;
+
+    const followOutput = chatlog.scrollHeight - chatlog.scrollTop - chatlog.clientHeight < 120;
+    if (pending.queuedThinking) {
+      if (!pending.hasThinking) {
+        pending.hasThinking = true;
+        pending.status.remove();
+        pending.details.hidden = false;
+        pending.details.open = !pending.hasAnswer;
+      }
+      pending.thinkingText.appendData(pending.queuedThinking);
+      pending.queuedThinking = "";
+    }
+    if (pending.queuedAnswer) {
+      if (!pending.hasAnswer) {
+        pending.hasAnswer = true;
+        pending.status.remove();
+        pending.answerElement.hidden = false;
+        pending.details.open = false;
+      }
+      pending.answerText.appendData(pending.queuedAnswer);
+      pending.queuedAnswer = "";
+    }
+    if (pending.hasThinking) {
       const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-      summary.textContent = answer ? t("thought_for", { s: seconds }) : t("thinking");
-      const body = document.createElement("div");
-      body.className = "thinking-body";
-      renderMarkdown(body, thinking);
-      details.append(summary, body);
-      bubbleElement.appendChild(details);
+      pending.summary.textContent = pending.hasAnswer
+        ? t("thought_for", { s: seconds })
+        : t("thinking");
     }
-    if (answer) {
-      const answerElement = document.createElement("div");
-      answerElement.className = "advice-answer";
-      renderMarkdown(answerElement, answer);
-      bubbleElement.appendChild(answerElement);
-    } else if (!thinking) {
-      const status = document.createElement("div");
-      status.className = "stream-status";
-      status.textContent = t("thinking");
-      bubbleElement.appendChild(status);
-    }
-    chatlog.scrollTop = chatlog.scrollHeight;
+    if (followOutput) chatlog.scrollTop = chatlog.scrollHeight;
+  }
+
+  function finalizeStreamingReply(pending, message) {
+    const followOutput = chatlog.scrollHeight - chatlog.scrollTop - chatlog.clientHeight < 120;
+    const finalBubble = buildAdviceBubble(
+      message.content,
+      message.thinking,
+      message.thought_seconds ?? null
+    );
+    pending.bubbleElement.replaceWith(finalBubble);
+    pending.actions.innerHTML = "";
+    appendBranchControl(pending.actions, message);
+    appendAction(pending.actions, t("copy_answer"), () => copyAnswer(message.content, pending.actions));
+    appendAction(pending.actions, t("regenerate"), () => regenerate(message));
+    pending.wrap.classList.remove("streaming");
+    pending.wrap.dataset.msgId = message.id;
+    if (followOutput) chatlog.scrollTop = chatlog.scrollHeight;
   }
 
   // Logging is separate from the conversation: extract what is already known,

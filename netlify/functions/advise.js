@@ -1,7 +1,7 @@
 // General pet chat: answer ordinary knowledge questions directly, help owners
 // think through a specific situation, and clearly signpost genuine emergencies.
 
-const MODEL = "claude-opus-4-8";
+const { getLlmConfig } = require("../lib/llm-config");
 
 const SYSTEM_PROMPT = `You are a knowledgeable, warm, and practical pet companion. You can \
 answer general pet questions and help an owner think through a specific situation. You are \
@@ -49,7 +49,7 @@ not repetitively.`;
 exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed." });
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { apiKey, endpoint, model } = getLlmConfig();
   if (!apiKey) {
     return json(500, {
       error: "The site owner hasn't set ANTHROPIC_API_KEY yet. Add it in Netlify → " +
@@ -70,10 +70,10 @@ exports.handler = async (event) => {
   const system = SYSTEM_PROMPT + langNote(lang);
 
   try {
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    const resp = await fetch(endpoint, {
       method: "POST",
       headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: MODEL, max_tokens: 1024, system, messages: contextualMessages }),
+      body: JSON.stringify({ model, max_tokens: 1024, system, messages: contextualMessages }),
     });
     if (!resp.ok) {
       const detail = await resp.text();

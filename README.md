@@ -122,6 +122,22 @@ environment variable and is never sent to the browser:**
   turning the conversation into a logging questionnaire, and gives
   **non-diagnostic** help with clear emergency signposting.
 
+The functions also support DeepSeek's Anthropic-compatible API. For local
+development, use one of these configurations in the ignored `.env` file:
+
+```env
+# Anthropic (the base URL and model are optional defaults)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# DeepSeek
+ANTHROPIC_API_KEY=your-deepseek-key
+ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
+ANTHROPIC_MODEL=deepseek-v4-pro
+```
+
+Set the same three variables in the relevant Netlify deploy context when using
+DeepSeek in a Deploy Preview or production. Never commit `.env`.
+
 ### Where your data lives
 
 Everything is stored **privately in your own browser**, in IndexedDB (which,

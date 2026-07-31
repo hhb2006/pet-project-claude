@@ -2,7 +2,7 @@
 // may resolve short answers such as "7", but this function never asks follow-up
 // questions or gives advice. The API key stays server-side.
 
-const MODEL = "claude-opus-4-8";
+const { getLlmConfig } = require("../lib/llm-config");
 
 const SYSTEM_PROMPT = `You are a structured extraction component for a pet diary.
 
@@ -82,7 +82,7 @@ exports.handler = async (event) => {
     return json(405, { error: "Method not allowed." });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const { apiKey, endpoint, model } = getLlmConfig();
   if (!apiKey) {
     return json(500, {
       error:
@@ -103,7 +103,7 @@ exports.handler = async (event) => {
   }
 
   try {
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    const resp = await fetch(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -111,7 +111,7 @@ exports.handler = async (event) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
         tools: [TOOL],

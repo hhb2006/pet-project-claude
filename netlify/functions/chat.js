@@ -167,7 +167,7 @@ function cleanRecord(input) {
   const text = value => {
     if (typeof value !== "string") return null;
     const clean = value.trim().slice(0, 2000);
-    return clean || null;
+    return clean && clean.toLowerCase() !== "null" ? clean : null;
   };
   const number = Number(input && input.intensity);
   const intensity = Number.isInteger(number) && number >= 1 && number <= 10 ? number : null;

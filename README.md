@@ -179,6 +179,14 @@ haven't overridden `netlify.toml` (the publish directory must be `public`).
 Without the env var, the page loads but the assistant replies with a message
 asking the owner to set `ANTHROPIC_API_KEY`.
 
+### Regression checks
+
+Run the dependency-free Node tests before deploying:
+
+```bash
+node --test tests/*.test.mjs
+```
+
 ### Making the log sync across devices (optional)
 
 `localStorage` is per-browser. To share one log across devices, move storage into

@@ -51,12 +51,26 @@ export default async function adviseStream(request) {
       signal: request.signal,
     });
   } catch (error) {
-    return json(502, { error: "Couldn't reach the assistant.", detail: String(error) });
+    console.warn("advise upstream connection failed", {
+      code: "network_error",
+      message: String(error && error.name || "fetch_error"),
+    });
+    return json(502, {
+      error: safeErrorMessage("network_error"),
+      code: "network_error",
+      request_id: null,
+    });
   }
 
   if (!upstream.ok || !upstream.body) {
     const detail = await upstream.text();
-    return json(502, { error: "The assistant is having trouble right now.", detail });
+    const failure = classifyUpstreamFailure(upstream.status, detail);
+    console.warn("advise upstream request failed", {
+      status: upstream.status,
+      code: failure.code,
+      request_id: failure.request_id,
+    });
+    return json(502, failure);
   }
 
   const reader = upstream.body.getReader();
@@ -95,7 +109,12 @@ export default async function adviseStream(request) {
         pending += decoder.decode(value, { stream: true });
         const frames = pending.split(/\r?\n\r?\n/);
         pending = frames.pop() || "";
-        for (const frame of frames) flushSse(frame, controller);
+        for (const frame of frames) {
+          if (!flushSse(frame, controller)) continue;
+          finish(controller);
+          reader.cancel().catch(() => {});
+          return;
+        }
       } catch (error) {
         if (finished) return;
         controller.enqueue(line({ type: "error", error: String(error) }));
@@ -122,26 +141,36 @@ export const config = { path: "/api/advise-stream" };
 
 function flushSse(frame, controller) {
   const raw = String(frame || "").trim();
-  if (!raw) return;
+  if (!raw) return false;
   const dataText = raw
     .split(/\r?\n/)
     .filter(part => part.startsWith("data:"))
     .map(part => part.slice(5).trimStart())
     .join("\n");
-  if (!dataText || dataText === "[DONE]") return;
+  if (!dataText) return false;
+  if (dataText === "[DONE]") return true;
 
   let event;
   try {
     event = JSON.parse(dataText);
   } catch {
-    return;
+    return false;
   }
   if (event.type === "error") {
+    const providerError = event.error || {};
+    const code = classifyErrorCode(null, providerError.code, providerError.type);
+    const requestId = providerError.request_id || event.request_id || null;
+    console.warn("advise upstream stream failed", {
+      code,
+      request_id: requestId,
+    });
     controller.enqueue(line({
       type: "error",
-      error: event.error && event.error.message ? event.error.message : "Streaming failed.",
+      code,
+      error: safeErrorMessage(code),
+      request_id: requestId,
     }));
-    return;
+    return true;
   }
 
   const delta = event.delta || {};
@@ -157,6 +186,8 @@ function flushSse(frame, controller) {
   if (delta.type === "text_delta" || answer) {
     if (answer) controller.enqueue(line({ type: "answer", delta: answer }));
   }
+  return event.type === "message_stop" ||
+    (event.type === "message_delta" && typeof delta.stop_reason === "string" && delta.stop_reason);
 }
 
 function firstString(...values) {
@@ -228,4 +259,45 @@ function json(status, value) {
     status,
     headers: { "content-type": "application/json; charset=utf-8" },
   });
+}
+
+function classifyUpstreamFailure(status, detail) {
+  let parsed = {};
+  try { parsed = JSON.parse(detail); } catch {}
+  const providerError = parsed && parsed.error && typeof parsed.error === "object"
+    ? parsed.error
+    : {};
+  const code = classifyErrorCode(status, providerError.code, providerError.type);
+  return {
+    error: safeErrorMessage(code),
+    code,
+    request_id: providerError.request_id || parsed.request_id || null,
+  };
+}
+
+function classifyErrorCode(status, providerCode, providerType) {
+  const value = `${providerCode || ""} ${providerType || ""}`.toLowerCase();
+  if (status === 401 || value.includes("auth") || value.includes("api_key") ||
+      value.includes("mismatched_client_ip")) return "authentication";
+  if (status === 402 || value.includes("balance") || value.includes("credit")) {
+    return "insufficient_balance";
+  }
+  if (status === 429 || value.includes("rate_limit")) return "rate_limited";
+  if (status === 400 || status === 422 || value.includes("invalid")) return "invalid_request";
+  if ((status && status >= 500) || value.includes("overload") || value.includes("server_error")) {
+    return "provider_unavailable";
+  }
+  return "provider_error";
+}
+
+function safeErrorMessage(code) {
+  return {
+    authentication: "The assistant's API configuration needs attention.",
+    insufficient_balance: "The assistant is unavailable because the API account needs credit.",
+    rate_limited: "The assistant is receiving too many requests right now.",
+    invalid_request: "The assistant couldn't process this conversation.",
+    provider_unavailable: "The assistant service is temporarily unavailable.",
+    network_error: "The assistant service couldn't be reached.",
+    provider_error: "The assistant is having trouble right now.",
+  }[code] || "The assistant is having trouble right now.";
 }

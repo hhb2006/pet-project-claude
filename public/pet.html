@@ -591,15 +591,11 @@
       const history = activePath
         .filter(m => m.kind === "advice")
         .map(m => ({ role: m.role, content: m.content }));
-      const res = await fetch("/api/advise-stream", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ messages: history, pet: petContext(), lang: langNow() }),
-        signal: controller.signal,
-      });
-      if (!res.ok || !res.body) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || t("err_generic"));
-      }
+      const res = await fetchAdviceStream({
+        messages: history,
+        pet: petContext(),
+        lang: langNow(),
+      }, controller.signal);
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -614,7 +610,7 @@
           const event = JSON.parse(raw);
           if (event.type === "thinking") thinking += event.delta || "";
           if (event.type === "answer") answer += event.delta || "";
-          if (event.type === "error") streamError = event.error || t("err_generic");
+          if (event.type === "error") streamError = chatFailureMessage(event);
           if (event.type === "timeout") streamError = t("stream_timeout");
           queueRefresh();
         }
@@ -646,6 +642,41 @@
         renderGenerationError(streamError, parentUser);
       }
     }
+  }
+
+  async function fetchAdviceStream(payload, signal) {
+    const retryable = new Set(["rate_limited", "provider_unavailable", "network_error"]);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      let response;
+      try {
+        response = await fetch("/api/advise-stream", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          signal,
+        });
+      } catch (error) {
+        if (error.name === "AbortError") throw error;
+        if (attempt === 1) throw new Error(t("chat_error_network_error"));
+        await new Promise(resolve => setTimeout(resolve, 350));
+        continue;
+      }
+
+      if (response.ok && response.body) return response;
+      const failure = await response.json().catch(() => ({}));
+      if (attempt === 0 && retryable.has(failure.code)) {
+        await new Promise(resolve => setTimeout(resolve, 350));
+        continue;
+      }
+      throw new Error(chatFailureMessage(failure));
+    }
+    throw new Error(t("err_unreachable"));
+  }
+
+  function chatFailureMessage(failure) {
+    const key = failure && failure.code ? `chat_error_${failure.code}` : "";
+    if (key && I18N.en[key]) return t(key);
+    return failure && failure.error ? failure.error : t("err_generic");
   }
 
   function renderGenerationError(error, parentUser) {

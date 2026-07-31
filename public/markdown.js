@@ -141,5 +141,57 @@
     target.appendChild(fragment);
   }
 
+  // Keep completed Markdown blocks stable while streaming. Only the text after
+  // the latest blank-line boundary is reparsed as new tokens arrive.
+  function lastCompletedBlockBoundary(source) {
+    let inCodeFence = false;
+    let lineStart = 0;
+    let boundary = 0;
+
+    for (let index = 0; index < source.length; index += 1) {
+      if (source[index] !== "\n") continue;
+      const line = source.slice(lineStart, index).replace(/\r$/, "");
+      if (!inCodeFence && /^```/.test(line)) {
+        inCodeFence = true;
+      } else if (inCodeFence && /^```\s*$/.test(line)) {
+        inCodeFence = false;
+      } else if (!inCodeFence && !line.trim()) {
+        boundary = index + 1;
+      }
+      lineStart = index + 1;
+    }
+    return boundary;
+  }
+
+  function createStreamingMarkdownRenderer(target) {
+    const liveBlock = document.createElement("div");
+    liveBlock.className = "stream-markdown-live";
+    liveBlock.hidden = true;
+    target.appendChild(liveBlock);
+    let source = "";
+    let committedLength = 0;
+
+    return {
+      append(delta) {
+        if (!delta) return;
+        source += delta;
+        const boundary = lastCompletedBlockBoundary(source);
+        if (boundary > committedLength) {
+          const completed = document.createElement("div");
+          renderMarkdown(completed, source.slice(committedLength, boundary));
+          while (completed.firstChild) {
+            target.insertBefore(completed.firstChild, liveBlock);
+          }
+          committedLength = boundary;
+        }
+
+        const liveSource = source.slice(committedLength);
+        liveBlock.hidden = !liveSource;
+        renderMarkdown(liveBlock, liveSource);
+      },
+    };
+  }
+
   window.renderMarkdown = renderMarkdown;
+  window.createStreamingMarkdownRenderer = createStreamingMarkdownRenderer;
 })();

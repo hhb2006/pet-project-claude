@@ -709,16 +709,14 @@
     const summary = document.createElement("summary");
     summary.textContent = t("thinking");
     const thinkingBody = document.createElement("div");
-    thinkingBody.className = "thinking-body streaming-text";
-    const thinkingText = document.createTextNode("");
-    thinkingBody.appendChild(thinkingText);
+    thinkingBody.className = "thinking-body";
+    const thinkingRenderer = createStreamingMarkdownRenderer(thinkingBody);
     details.append(summary, thinkingBody);
 
     const answerElement = document.createElement("div");
-    answerElement.className = "advice-answer streaming-text";
+    answerElement.className = "advice-answer";
     answerElement.hidden = true;
-    const answerText = document.createTextNode("");
-    answerElement.appendChild(answerText);
+    const answerRenderer = createStreamingMarkdownRenderer(answerElement);
     bubbleElement.append(status, details, answerElement);
 
     const actions = document.createElement("div");
@@ -733,9 +731,9 @@
       status,
       details,
       summary,
-      thinkingText,
+      thinkingRenderer,
       answerElement,
-      answerText,
+      answerRenderer,
       actions,
       queuedThinking: "",
       queuedAnswer: "",
@@ -763,7 +761,7 @@
         pending.details.hidden = false;
         pending.details.open = !pending.hasAnswer;
       }
-      pending.thinkingText.appendData(pending.queuedThinking);
+      pending.thinkingRenderer.append(pending.queuedThinking);
       pending.queuedThinking = "";
     }
     if (pending.queuedAnswer) {
@@ -773,7 +771,7 @@
         pending.answerElement.hidden = false;
         pending.details.open = false;
       }
-      pending.answerText.appendData(pending.queuedAnswer);
+      pending.answerRenderer.append(pending.queuedAnswer);
       pending.queuedAnswer = "";
     }
     if (pending.hasThinking) {

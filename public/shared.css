@@ -299,7 +299,8 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   font-size: 0.88rem; line-height: 1.55;
 }
 .stream-status { color: var(--muted); font-style: italic; }
-.streaming-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.stream-markdown-live > :first-child { margin-top: 0; }
+.stream-markdown-live > :last-child { margin-bottom: 0; }
 .streaming .stream-status::after {
   content: ""; display: inline-block; width: 1.2em; animation: stream-dots 1.2s steps(4, end) infinite;
 }

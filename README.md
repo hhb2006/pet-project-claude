@@ -75,7 +75,7 @@ it **never** suggests diagnoses.
 
 The web app organizes everything **by pet**: each pet is its own project, with
 its own log, documents, and reports. It's a small static site plus three
-serverless functions — no build step.
+serverless functions and one streaming Edge Function — no build step.
 
 Pages (`public/`):
 
@@ -83,7 +83,11 @@ Pages (`public/`):
   its entry/document counts, open it.
 - `pet.html?id=…` — a pet's workspace, with three tabs:
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
-    (with a "＋ New chat" for a fresh topic, like any LLM chat app). Chat is
+    (with a "＋ New chat" for a fresh topic, like any LLM chat app). Replies
+    stream into the page, with a collapsible thinking section and a stop
+    control. User messages can be edited; assistant replies can be copied or
+    regenerated. Editing and regeneration create switchable branches, so the
+    original conversation and any log linked to it remain intact. Chat is
     advice by default and **nothing is saved to the log unless you say so**:
     every message you send carries its own **"＋ Complete & add to log"** action.
     It extracts the details already mentioned, opens a small review form for
@@ -112,7 +116,8 @@ writes reports — in the same language. Species and all 346 breed names are
 translated too; the stored values stay English so records are language-neutral
 and switching languages never rewrites your data.
 
-Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
+Functions (`netlify/functions/`) and the streaming Edge Function
+(`netlify/edge-functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**
 
 - `chat.js` — logging; calls the configured model with a forced tool for clean
@@ -120,7 +125,10 @@ environment variable and is never sent to the browser:**
 - `analyze.js` — computes the patterns deterministically (a JS port of
   `analyze_behavior_log.py`), then has the configured model write the narrative
   report.
-- `advise.js` — general pet chat: answers ordinary questions directly without
+- `advise.js` — non-streaming compatibility endpoint for general pet chat.
+- `advise-stream.js` — streams DeepSeek thinking and final-answer deltas to the
+  chat interface through `/api/advise-stream`.
+  General pet chat answers ordinary questions directly without
   turning the conversation into a logging questionnaire, and gives
   **non-diagnostic** help with clear emergency signposting.
 

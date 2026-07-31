@@ -187,6 +187,9 @@
 
   let session = null;
   let activeLogDraft = null;
+  let messageRows = [];
+  let activePath = [];
+  let activeGeneration = null;
 
   async function refreshSessions(selectId) {
     const sessions = await listSessions(petId);
@@ -203,14 +206,68 @@
   }
 
   async function openSession(id) {
+    if (activeGeneration) {
+      activeGeneration.discard = true;
+      activeGeneration.controller.abort();
+    }
     session = await getSession(id);
+    const tree = await ensureMessageTree(session);
+    session = tree.session;
+    messageRows = tree.messages;
+    activePath = pathToLeaf(session.active_leaf_id);
     sessionSel.value = id;
-    chatlog.innerHTML = "";
-    const msgs = await listMessages(id);
-    if (!msgs.length) greet();
-    for (const m of msgs) renderStored(m);
+    renderActiveChat();
     setHint();
+  }
+
+  function renderActiveChat() {
+    chatlog.innerHTML = "";
+    if (!activePath.length) greet();
+    for (const message of activePath) renderStored(message);
     chatlog.scrollTop = chatlog.scrollHeight;
+  }
+
+  function pathToLeaf(leafId) {
+    const byId = new Map(messageRows.map(message => [message.id, message]));
+    const path = [];
+    const seen = new Set();
+    let current = byId.get(leafId);
+    while (current && !seen.has(current.id)) {
+      seen.add(current.id);
+      path.push(current);
+      current = byId.get(current.parent_id);
+    }
+    return path.reverse();
+  }
+
+  function variantsFor(message) {
+    return messageRows.filter(candidate =>
+      candidate.parent_id === message.parent_id &&
+      candidate.role === message.role &&
+      candidate.kind === message.kind
+    );
+  }
+
+  function latestLeafFrom(messageId) {
+    let currentId = messageId;
+    const seen = new Set();
+    while (currentId && !seen.has(currentId)) {
+      seen.add(currentId);
+      const children = messageRows
+        .filter(message => message.parent_id === currentId)
+        .sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+      if (!children.length) break;
+      currentId = children[children.length - 1].id;
+    }
+    return currentId;
+  }
+
+  async function activateVariant(messageId) {
+    if (activeGeneration) return;
+    const leafId = latestLeafFrom(messageId);
+    session = await touchSession(session, { active_leaf_id: leafId });
+    activePath = pathToLeaf(leafId);
+    renderActiveChat();
   }
 
   async function newSession() {
@@ -239,9 +296,14 @@
   }
 
   function renderStored(m) {
-    if (m.kind === "summary") return renderSummary(JSON.parse(m.content), m.id);
+    if (m.kind === "summary") {
+      try { return renderSummary(JSON.parse(m.content), m.id); }
+      catch { return bubble(m.content, "assistant"); }
+    }
     if (m.role === "user") return renderUser(m);
-    return m.kind === "log" ? bubble(m.content, "assistant") : adviceBubble(m.content);
+    return m.kind === "log"
+      ? bubble(m.content, "assistant")
+      : renderAssistant(m);
   }
 
   function bubble(text, cls) {
@@ -253,13 +315,53 @@
     return d;
   }
 
-  function adviceBubble(text) {
+  function buildAdviceBubble(text, thinking = "", thoughtSeconds = null) {
     const d = document.createElement("div");
     d.className = "msg advice";
-    renderMarkdown(d, text);
+    if (thinking) {
+      const details = document.createElement("details");
+      details.className = "thinking-panel";
+      const summary = document.createElement("summary");
+      summary.textContent = thoughtSeconds === null
+        ? t("thinking_process")
+        : t("thought_for", { s: thoughtSeconds });
+      const body = document.createElement("div");
+      body.className = "thinking-body";
+      renderMarkdown(body, thinking);
+      details.append(summary, body);
+      d.appendChild(details);
+
+      const answer = document.createElement("div");
+      answer.className = "advice-answer";
+      renderMarkdown(answer, text);
+      d.appendChild(answer);
+    } else {
+      renderMarkdown(d, text);
+    }
+    return d;
+  }
+
+  function adviceBubble(text, thinking = "", thoughtSeconds = null) {
+    const d = buildAdviceBubble(text, thinking, thoughtSeconds);
     chatlog.appendChild(d);
     chatlog.scrollTop = chatlog.scrollHeight;
     return d;
+  }
+
+  function renderAssistant(m) {
+    const wrap = document.createElement("div");
+    wrap.className = "assistantgroup";
+    wrap.dataset.msgId = m.id;
+    wrap.appendChild(buildAdviceBubble(m.content, m.thinking, m.thought_seconds ?? null));
+
+    const actions = document.createElement("div");
+    actions.className = "msgactions assistant-actions";
+    appendBranchControl(actions, m);
+    appendAction(actions, t("copy_answer"), () => copyAnswer(m.content, actions));
+    appendAction(actions, t("regenerate"), () => regenerate(m));
+    wrap.appendChild(actions);
+    chatlog.appendChild(wrap);
+    return wrap;
   }
 
   // Every message you send carries its own "add to log" decision.
@@ -273,16 +375,115 @@
     wrap.appendChild(d);
 
     const act = document.createElement("div");
-    act.className = "msgactions";
+    act.className = "msgactions user-actions";
+    appendBranchControl(act, m);
+    appendAction(act, t("edit_message"), () => editUserMessage(wrap, m));
+    const logSlot = document.createElement("span");
+    logSlot.className = "log-action";
     if (m.entry_id) {
-      loggedButton(act, m);
+      loggedButton(logSlot, m);
     } else if (m.kind === "advice") {
-      addButton(act, m);
+      addButton(logSlot, m);
     }
+    act.appendChild(logSlot);
     wrap.appendChild(act);
     chatlog.appendChild(wrap);
     chatlog.scrollTop = chatlog.scrollHeight;
     return wrap;
+  }
+
+  function appendAction(container, label, handler, className = "linkbtn") {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = className;
+    button.textContent = label;
+    button.onclick = handler;
+    container.appendChild(button);
+    return button;
+  }
+
+  function appendBranchControl(container, message) {
+    const variants = variantsFor(message);
+    if (variants.length < 2) return;
+    const index = variants.findIndex(candidate => candidate.id === message.id);
+    const control = document.createElement("span");
+    control.className = "branch-control";
+    const previous = appendAction(
+      control, "‹", () => activateVariant(variants[(index - 1 + variants.length) % variants.length].id)
+    );
+    previous.title = t("previous_version");
+    const count = document.createElement("span");
+    count.textContent = `${index + 1} / ${variants.length}`;
+    control.appendChild(count);
+    const next = appendAction(
+      control, "›", () => activateVariant(variants[(index + 1) % variants.length].id)
+    );
+    next.title = t("next_version");
+    container.appendChild(control);
+  }
+
+  async function copyAnswer(text, actions) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const helper = document.createElement("textarea");
+        helper.value = text;
+        helper.style.position = "fixed";
+        helper.style.opacity = "0";
+        document.body.appendChild(helper);
+        helper.select();
+        document.execCommand("copy");
+        helper.remove();
+      }
+      const copyButton = Array.from(actions.querySelectorAll("button"))
+        .find(button => button.textContent === t("copy_answer"));
+      if (copyButton) {
+        copyButton.textContent = t("copied");
+        setTimeout(() => { copyButton.textContent = t("copy_answer"); }, 1500);
+      }
+    } catch {
+      // The browser can deny clipboard access; leave the action available to retry.
+    }
+  }
+
+  function editUserMessage(wrap, message) {
+    if (activeGeneration) return;
+    const bubbleElement = wrap.querySelector(".msg.user");
+    const actions = wrap.querySelector(".msgactions");
+    bubbleElement.hidden = true;
+    actions.hidden = true;
+
+    const form = document.createElement("form");
+    form.className = "message-edit-form";
+    const textarea = document.createElement("textarea");
+    textarea.rows = 2;
+    textarea.value = message.content;
+    const buttons = document.createElement("div");
+    buttons.className = "rowbtns";
+    appendAction(buttons, t("cancel"), () => {
+      form.remove();
+      bubbleElement.hidden = false;
+      actions.hidden = false;
+    }, "ghost");
+    const save = appendAction(buttons, t("save_and_send"), () => {}, "");
+    save.type = "submit";
+    form.append(textarea, buttons);
+    form.addEventListener("submit", async event => {
+      event.preventDefault();
+      const content = textarea.value.trim();
+      if (!content || activeGeneration) return;
+      const edited = await say("user", "advice", content, {
+        parent_id: message.parent_id,
+        render: false,
+      });
+      activePath = pathToLeaf(edited.id);
+      renderActiveChat();
+      await runAdvice(edited);
+    });
+    wrap.appendChild(form);
+    textarea.focus();
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
   }
 
   function summaryHTML(r) {
@@ -307,20 +508,26 @@
     chatlog.scrollTop = chatlog.scrollHeight;
   }
 
-  function typing(on) {
-    let el = document.getElementById("typing");
-    if (on && !el) {
-      el = document.createElement("div");
-      el.id = "typing"; el.className = "typing"; el.textContent = t("thinking");
-      chatlog.appendChild(el); chatlog.scrollTop = chatlog.scrollHeight;
-    } else if (!on && el) el.remove();
-  }
   function busy(on) { sendBtn.disabled = on; }
   function setHint() { hintEl.textContent = t("hint_free"); }
 
-  async function say(role, kind, content, entry_id = null) {
-    const m = await addMessage(session.id, petId, { role, kind, content, entry_id });
-    renderStored(m);
+  async function say(role, kind, content, options = {}) {
+    const parentId = Object.prototype.hasOwnProperty.call(options, "parent_id")
+      ? options.parent_id
+      : (session.active_leaf_id || null);
+    const m = await addMessage(session.id, petId, {
+      role,
+      kind,
+      content,
+      entry_id: options.entry_id || null,
+      thinking: options.thinking || null,
+      thought_seconds: options.thought_seconds ?? null,
+      parent_id: parentId,
+    });
+    messageRows.push(m);
+    session = await touchSession(session, { active_leaf_id: m.id });
+    activePath = pathToLeaf(m.id);
+    if (options.render !== false) renderActiveChat();
     return m;
   }
 
@@ -332,36 +539,172 @@
     input.value = ""; input.style.height = "auto";
 
     if (!session) await newSession();
-    if (session.title === "New chat") {
+    if (!messageRows.length) {
       session = await touchSession(session, { title: text.slice(0, 40) + (text.length > 40 ? "…" : "") });
       await refreshSessions(session.id);
     } else {
       session = await touchSession(session);
     }
 
-    await say("user", "advice", text);
-    await runAdvice();
+    const userMessage = await say("user", "advice", text);
+    await runAdvice(userMessage);
   });
 
-  async function runAdvice() {
-    typing(true); busy(true);
+  async function regenerate(message) {
+    if (activeGeneration) return;
+    const userMessage = messageRows.find(candidate => candidate.id === message.parent_id);
+    if (!userMessage) return;
+    session = await touchSession(session, { active_leaf_id: userMessage.id });
+    activePath = pathToLeaf(userMessage.id);
+    renderActiveChat();
+    await runAdvice(userMessage);
+  }
+
+  async function runAdvice(parentUser) {
+    if (activeGeneration) return;
+    busy(true);
+    const controller = new AbortController();
+    const startedAt = Date.now();
+    const generation = {
+      controller,
+      parentId: parentUser.id,
+      sessionId: session.id,
+      discard: false,
+    };
+    activeGeneration = generation;
+    const pending = createStreamingReply(controller);
+    let thinking = "";
+    let answer = "";
+    let streamError = "";
+    let renderFrame = null;
+
+    const refreshPending = () => {
+      renderFrame = null;
+      updateStreamingReply(pending, thinking, answer, startedAt);
+    };
+    const queueRefresh = () => {
+      if (renderFrame !== null) return;
+      renderFrame = requestAnimationFrame(refreshPending);
+    };
+
     try {
-      // Keep the advice thread coherent: don't feed it the logging Q&A.
-      const history = (await listMessages(session.id))
+      const history = activePath
         .filter(m => m.kind === "advice")
         .map(m => ({ role: m.role, content: m.content }));
-      const res = await fetch("/.netlify/functions/advise", {
+      const res = await fetch("/api/advise-stream", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: history, pet: petContext(), lang: langNow() }),
+        signal: controller.signal,
       });
-      const data = await res.json();
-      typing(false);
-      if (!res.ok) { bubble(data.error || t("err_generic"), "assistant").classList.add("error"); return; }
-      await say("assistant", "advice", data.reply);
-    } catch {
-      typing(false);
-      bubble(t("err_unreachable"), "assistant").classList.add("error");
-    } finally { busy(false); }
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || t("err_generic"));
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = buffer.split("\n");
+        buffer = done ? "" : lines.pop();
+        for (const raw of lines) {
+          if (!raw.trim()) continue;
+          const event = JSON.parse(raw);
+          if (event.type === "thinking") thinking += event.delta || "";
+          if (event.type === "answer") answer += event.delta || "";
+          if (event.type === "error") streamError = event.error || t("err_generic");
+          queueRefresh();
+        }
+        if (done) break;
+      }
+      if (streamError && !answer && !thinking) throw new Error(streamError);
+    } catch (error) {
+      if (error.name !== "AbortError") streamError = error.message || t("err_unreachable");
+    } finally {
+      if (renderFrame !== null) {
+        cancelAnimationFrame(renderFrame);
+        refreshPending();
+      }
+      pending.remove();
+      const stopped = controller.signal.aborted;
+      if (activeGeneration === generation) activeGeneration = null;
+      busy(false);
+
+      if (!generation.discard && session.id === generation.sessionId && (answer || thinking || stopped)) {
+        const finalAnswer = answer || (stopped ? t("generation_stopped") : streamError || t("err_generic"));
+        await say("assistant", "advice", finalAnswer, {
+          parent_id: parentUser.id,
+          thinking,
+          thought_seconds: Math.max(1, Math.round((Date.now() - startedAt) / 1000)),
+        });
+      } else if (!generation.discard && session.id === generation.sessionId && streamError && !stopped) {
+        renderGenerationError(streamError, parentUser);
+      }
+    }
+  }
+
+  function renderGenerationError(error, parentUser) {
+    const wrap = document.createElement("div");
+    wrap.className = "assistantgroup";
+    const message = document.createElement("div");
+    message.className = "msg assistant error";
+    message.textContent = error;
+    const actions = document.createElement("div");
+    actions.className = "msgactions assistant-actions";
+    appendAction(actions, t("retry"), () => {
+      wrap.remove();
+      runAdvice(parentUser);
+    });
+    wrap.append(message, actions);
+    chatlog.appendChild(wrap);
+    chatlog.scrollTop = chatlog.scrollHeight;
+  }
+
+  function createStreamingReply(controller) {
+    const wrap = document.createElement("div");
+    wrap.className = "assistantgroup streaming";
+    const bubbleElement = document.createElement("div");
+    bubbleElement.className = "msg advice";
+    bubbleElement.innerHTML = `<div class="stream-status">${t("thinking")}</div>`;
+    const actions = document.createElement("div");
+    actions.className = "msgactions assistant-actions";
+    appendAction(actions, t("stop_generating"), () => controller.abort(), "stop-generation");
+    wrap.append(bubbleElement, actions);
+    chatlog.appendChild(wrap);
+    chatlog.scrollTop = chatlog.scrollHeight;
+    return wrap;
+  }
+
+  function updateStreamingReply(wrap, thinking, answer, startedAt) {
+    const bubbleElement = wrap.querySelector(".msg.advice");
+    bubbleElement.innerHTML = "";
+    if (thinking) {
+      const details = document.createElement("details");
+      details.className = "thinking-panel";
+      details.open = !answer;
+      const summary = document.createElement("summary");
+      const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+      summary.textContent = answer ? t("thought_for", { s: seconds }) : t("thinking");
+      const body = document.createElement("div");
+      body.className = "thinking-body";
+      renderMarkdown(body, thinking);
+      details.append(summary, body);
+      bubbleElement.appendChild(details);
+    }
+    if (answer) {
+      const answerElement = document.createElement("div");
+      answerElement.className = "advice-answer";
+      renderMarkdown(answerElement, answer);
+      bubbleElement.appendChild(answerElement);
+    } else if (!thinking) {
+      const status = document.createElement("div");
+      status.className = "stream-status";
+      status.textContent = t("thinking");
+      bubbleElement.appendChild(status);
+    }
+    chatlog.scrollTop = chatlog.scrollHeight;
   }
 
   // Logging is separate from the conversation: extract what is already known,
@@ -390,7 +733,7 @@
   async function prepareLog(m, act) {
     act.innerHTML = `<span class="logged">${t("adding")}</span>`;
     try {
-      const thread = (await listMessages(session.id)).filter(message => message.kind === "advice");
+      const thread = activePath.filter(message => message.kind === "advice");
       const targetIndex = thread.findIndex(message => message.id === m.id);
       const context = (targetIndex >= 0 ? thread.slice(0, targetIndex + 1) : [m])
         .slice(-12)

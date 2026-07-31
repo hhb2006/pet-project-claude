@@ -209,14 +209,41 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .sessionbar select { flex: 1; min-width: 0; padding: 8px 12px; padding-right: 32px; font-size: 0.9rem; }
 .sessionbar button { padding: 8px 12px; font-size: 0.86rem; white-space: nowrap; }
 
-/* Per-message "add to log" decision */
+/* Per-message actions and alternate conversation branches */
 .usergroup { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.msgactions { font-size: 0.78rem; padding-right: 4px; }
+.assistantgroup {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  width: 100%;
+}
+.msgactions {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 9px;
+  min-height: 20px; font-size: 0.78rem; padding: 0 4px;
+}
+.assistant-actions { justify-content: flex-start; }
+.user-actions { justify-content: flex-end; }
+.branch-control { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
+.branch-control .linkbtn {
+  width: 20px; height: 20px; padding: 0; text-decoration: none;
+  border-radius: 50%; font-size: 1rem; line-height: 18px;
+}
+.log-action { display: inline-flex; }
 .linkbtn {
   background: none; border: none; padding: 0; font: inherit; font-size: 0.78rem;
   color: var(--accent); cursor: pointer; text-decoration: underline;
 }
 .linkbtn:hover { opacity: 0.8; }
+.stop-generation {
+  background: transparent; color: var(--muted); border: 1px solid var(--line);
+  padding: 3px 9px; border-radius: 999px; font-size: 0.78rem;
+}
+.stop-generation:hover { color: var(--ink); border-color: var(--muted); }
+.message-edit-form {
+  display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  width: min(100%, 520px);
+}
+.message-edit-form textarea { width: 100%; max-height: 220px; }
+.message-edit-form .rowbtns { justify-content: flex-end; margin-top: 0; }
+.message-edit-form button { padding: 7px 12px; font-size: 0.84rem; }
 .logged { color: var(--muted); }
 .choicehint { color: var(--muted); font-size: 0.82rem; padding: 0 16px 12px; text-align: center; }
 
@@ -258,6 +285,31 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   margin: 1em 0 0.4em; font-size: 1rem; line-height: 1.35;
 }
 .msg.advice ul, .msg.advice ol { margin: 0.35em 0 0.8em; padding-left: 1.45em; }
+.thinking-panel {
+  margin: 0 0 14px; padding: 0 0 12px; border-bottom: 1px solid var(--line);
+  color: var(--muted);
+}
+.thinking-panel summary {
+  width: fit-content; cursor: pointer; user-select: none; font-size: 0.86rem;
+  font-weight: 600;
+}
+.thinking-panel summary:hover { color: var(--ink); }
+.thinking-body {
+  margin: 10px 0 0; padding-left: 12px; border-left: 2px solid var(--line);
+  font-size: 0.88rem; line-height: 1.55;
+}
+.stream-status { color: var(--muted); font-style: italic; }
+.streaming .stream-status::after {
+  content: ""; display: inline-block; width: 1.2em; animation: stream-dots 1.2s steps(4, end) infinite;
+}
+@keyframes stream-dots {
+  0% { content: ""; }
+  25% { content: "."; }
+  50% { content: ".."; }
+  75%, 100% { content: "..."; }
+}
+.thinking-body > :first-child, .advice-answer > :first-child { margin-top: 0; }
+.thinking-body > :last-child, .advice-answer > :last-child { margin-bottom: 0; }
 .msg.advice li + li { margin-top: 0.25em; }
 .msg.advice a { color: var(--accent); }
 .msg.advice code {
@@ -275,6 +327,7 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tile, .petrow .avatar, nav.tabs.backnav a { transition: none; }
+  .streaming .stream-status::after { animation: none; content: "..."; }
   .tile:hover, .tile:focus-visible,
   .tile:hover .avatar, .tile:focus-visible .avatar,
   nav.tabs.backnav a:hover { transform: none; }

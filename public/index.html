@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Pet Behavior Journal</title>
+<title>Pet Diary</title>
 <link rel="stylesheet" href="/shared.css" />
 </head>
 <body data-title-key="app_title">
@@ -14,7 +14,7 @@
     <p data-i18n="app_tagline"></p>
   </header>
 
-  <div class="card" style="margin-bottom:16px">
+  <div class="card pet-form-card" style="margin-bottom:16px">
     <div class="step">
       <h3 data-i18n="add_pet"></h3>
       <div class="petform">
@@ -23,9 +23,12 @@
           <option value="" disabled selected>Species…</option>
         </select>
         <input type="text" id="speciesOther" data-i18n-ph="species_other_ph" style="display:none" />
-        <input type="search" id="breedSearch" data-i18n-ph="breed_search_ph" style="display:none" />
-        <select id="breed" style="display:none"></select>
-        <input type="text" id="breedOther" data-i18n-ph="breed_free_ph" style="display:none" />
+        <div class="breed-combobox" id="breedBox" style="display:none">
+          <input type="search" id="breed" data-i18n-ph="breed_ph" autocomplete="off"
+                 role="combobox" aria-autocomplete="list" aria-expanded="false"
+                 aria-controls="breedOptions" />
+          <div class="breed-options" id="breedOptions" role="listbox" hidden></div>
+        </div>
       </div>
       <p class="hint" data-i18n="pet_hint"></p>
       <div class="rowbtns"><button id="add" data-i18n="create"></button></div>
@@ -46,9 +49,9 @@
   const form = wireSpeciesBreed({
     speciesSel: document.getElementById("species"),
     speciesOther: document.getElementById("speciesOther"),
-    breedSearch: document.getElementById("breedSearch"),
-    breedSel: document.getElementById("breed"),
-    breedOther: document.getElementById("breedOther"),
+    breedBox: document.getElementById("breedBox"),
+    breedInput: document.getElementById("breed"),
+    breedList: document.getElementById("breedOptions"),
   });
 
   async function render() {
@@ -64,6 +67,9 @@
       const last = entries.length ? t("last_logged", { d: fmtDate(entries[entries.length - 1].logged_at) }) : null;
       const tile = document.createElement("div");
       tile.className = "tile";
+      tile.tabIndex = 0;
+      tile.setAttribute("role", "link");
+      tile.setAttribute("aria-label", pet.name);
       const kind = [breedLabel(pet.species, pet.breed), speciesDisplay(pet.species)].filter(Boolean).join(" · ");
       tile.innerHTML = `
         <div class="petrow">
@@ -74,9 +80,13 @@
           </div>
           <button class="del">${t("delete")}</button>
         </div>`;
-      tile.style.cursor = "pointer";
       tile.addEventListener("click", (e) => {
         if (e.target.classList.contains("del")) return;
+        location.href = `/pet.html?id=${encodeURIComponent(pet.id)}`;
+      });
+      tile.addEventListener("keydown", (e) => {
+        if (e.target !== tile || (e.key !== "Enter" && e.key !== " ")) return;
+        e.preventDefault();
         location.href = `/pet.html?id=${encodeURIComponent(pet.id)}`;
       });
       tile.querySelector(".del").addEventListener("click", async (e) => {

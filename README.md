@@ -1,4 +1,4 @@
-# Pet Behavior Logger 🐾
+# Pet Diary 🐾
 
 A warm, conversational CLI that helps pet owners log behavioral events. You
 describe something your pet did in plain language; the assistant extracts
@@ -75,7 +75,7 @@ it **never** suggests diagnoses.
 
 The web app organizes everything **by pet**: each pet is its own project, with
 its own log, documents, and reports. It's a small static site plus three
-serverless functions — no build step.
+serverless functions and one streaming Edge Function — no build step.
 
 Pages (`public/`):
 
@@ -83,19 +83,23 @@ Pages (`public/`):
   its entry/document counts, open it.
 - `pet.html?id=…` — a pet's workspace, with three tabs:
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
-    (with a "＋ New chat" for a fresh topic, like any LLM chat app). Chat is
+    (with a "＋ New chat" for a fresh topic, like any LLM chat app). Replies
+    stream into the page, with a collapsible thinking section and a stop
+    control. User messages can be edited; assistant replies can be copied or
+    regenerated. Editing and regeneration create switchable branches, so the
+    original conversation and any log linked to it remain intact. Chat is
     advice by default and **nothing is saved to the log unless you say so**:
-    every message you send carries its own **"＋ Add to log"** action. It's a
-    quiet side-action: no chat messages and no follow-up questions — the entry
-    is extracted and saved straight away, and the link becomes **"✓ Added"**.
-    Whatever the message didn't mention is simply left "not recorded".
+    every message you send carries its own **"＋ Complete & add to log"** action.
+    It extracts the details already mentioned, opens a small review form for
+    any corrections or missing fields, and saves exactly one entry linked to
+    that source message. The same control then becomes **"✓ Added · View/edit"**.
   - **Log** — every entry added from chat, newest first, each **editable** (fill
     in what the message didn't mention, or correct it — a blank field records as
     "not recorded") and deletable, plus
     **Create report**: a narrative on the pet's **history and where things
-    stand now**, a behavioral profile and questions for your vet — savable to
-    Documents or downloadable as `.txt`. The report is generated from the log,
-    so the two live together.
+    stand now**, a behavioral profile and proportionate next steps — savable
+    to Documents or downloadable as `.txt`. The report is generated from the
+    log, so the two live together.
   - **Documents** — write notes (vet visits, medication, diet), attach files
     (photos, paperwork), and keep saved reports.
 
@@ -112,15 +116,42 @@ writes reports — in the same language. Species and all 346 breed names are
 translated too; the stored values stay English so records are language-neutral
 and switching languages never rewrites your data.
 
-Functions (`netlify/functions/`) — **your Anthropic API key lives here as an
+Functions (`netlify/functions/`) and the streaming Edge Function
+(`netlify/edge-functions/`) — **your Anthropic API key lives here as an
 environment variable and is never sent to the browser:**
 
-- `chat.js` — logging; calls Claude with a forced tool for clean structured output.
+- `chat.js` — logging; calls the configured model with a forced tool for clean
+  structured output.
 - `analyze.js` — computes the patterns deterministically (a JS port of
-  `analyze_behavior_log.py`), then has Claude write the narrative report.
-- `advise.js` — the "just ask" path: warm, practical, **non-diagnostic** help with
-  clear signposting about when to involve a vet or trainer, and emergencies
-  pointed straight at a professional.
+  `analyze_behavior_log.py`), then has the configured model write the narrative
+  report.
+- `advise.js` — non-streaming compatibility endpoint for general pet chat.
+- `advise-stream.js` — streams DeepSeek thinking and final-answer deltas to the
+  chat interface through `/api/advise-stream`.
+  General pet chat answers ordinary questions directly without
+  turning the conversation into a logging questionnaire, and gives
+  **non-diagnostic** help with clear emergency signposting.
+
+The committed defaults in `netlify/lib/llm-defaults.json` use DeepSeek's
+Anthropic-compatible API and `deepseek-v4-flash`. For local development, the
+ignored `.env` only needs the private key:
+
+```env
+ANTHROPIC_API_KEY=your-deepseek-key
+```
+
+All three existing environment variables remain supported. To test another
+Anthropic-compatible endpoint or model without changing the committed defaults,
+override either value locally or in Netlify:
+
+```env
+ANTHROPIC_BASE_URL=https://another-compatible-provider.example
+ANTHROPIC_MODEL=another-model
+```
+
+Environment variables take precedence over the committed defaults. In Netlify,
+store `ANTHROPIC_API_KEY` as a secret environment variable; add the other two
+only when an environment needs an override. Never commit `.env`.
 
 ### Where your data lives
 
@@ -147,6 +178,14 @@ If you still get a 404, check that the site's build settings in the Netlify UI
 haven't overridden `netlify.toml` (the publish directory must be `public`).
 Without the env var, the page loads but the assistant replies with a message
 asking the owner to set `ANTHROPIC_API_KEY`.
+
+### Regression checks
+
+Run the dependency-free Node tests before deploying:
+
+```bash
+node --test tests/*.test.mjs
+```
 
 ### Making the log sync across devices (optional)
 

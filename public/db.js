@@ -9,7 +9,8 @@
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
 //   attachments { id, pet_id, name, type, size, blob, created_at }
 //   sessions    { id, pet_id, title, created_at, updated_at }
-//   messages    { id, session_id, pet_id, role, kind, content, entry_id, created_at }
+//   messages    { id, session_id, pet_id, role, kind, content, thinking,
+//                 thought_seconds, parent_id, entry_id, created_at }
 
 const DB_NAME = "pet_journal";
 const DB_VERSION = 2;
@@ -116,6 +117,63 @@ async function addEntry(petId, record) {
   await tx("entries", "readwrite", s => s.put(entry));
   return entry;
 }
+async function getEntry(id) {
+  return tx("entries", "readonly", s => reqOf(s.get(id)));
+}
+
+// Create or update the single entry linked to a source chat message. IndexedDB
+// serializes these read/write transactions, so repeated clicks or another tab
+// update the same entry instead of creating duplicates for that message.
+async function saveEntryForMessage(petId, messageId, record) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction(["entries", "messages"], "readwrite");
+    const entries = transaction.objectStore("entries");
+    const messages = transaction.objectStore("messages");
+    let savedEntry = null;
+
+    const messageRequest = messages.get(messageId);
+    messageRequest.onsuccess = () => {
+      const message = messageRequest.result;
+      if (!message || message.pet_id !== petId) {
+        transaction.abort();
+        return;
+      }
+
+      const entryId = message.entry_id || uid();
+      const entryRequest = entries.get(entryId);
+      entryRequest.onsuccess = () => {
+        const existing = entryRequest.result;
+        const text = value => {
+          if (value === undefined || value === null) return null;
+          const clean = String(value).trim();
+          return clean || null;
+        };
+        const intensityText = text(record.intensity);
+        savedEntry = {
+          ...(existing || {}),
+          id: entryId,
+          pet_id: petId,
+          source_message_id: messageId,
+          logged_at: existing?.logged_at || new Date().toISOString(),
+          behavior_type: text(record.behavior_type),
+          trigger: text(record.trigger),
+          timestamp: text(record.timestamp),
+          duration: text(record.duration),
+          intensity: intensityText === null ? null : Number(intensityText),
+          recovery_period: text(record.recovery_period),
+          time_of_day: existing?.time_of_day || null,
+          ...(existing ? { edited_at: new Date().toISOString() } : {}),
+        };
+        entries.put(savedEntry);
+        messages.put({ ...message, entry_id: entryId });
+      };
+    };
+
+    transaction.oncomplete = () => resolve(savedEntry);
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error || new Error("Could not save log entry."));
+  }));
+}
 // Editing an entry by hand replaces the fields exactly as given — a field left
 // blank becomes null ("not recorded"), so the owner can clear something the
 // assistant got wrong, not just add to it.
@@ -137,7 +195,30 @@ async function updateEntry(id, fields) {
   await tx("entries", "readwrite", s => s.put(next));
   return next;
 }
-async function deleteEntry(id) { await tx("entries", "readwrite", s => s.delete(id)); }
+// Delete the entry and release every chat message linked to it in one atomic
+// transaction. Released messages can then be added to the log again.
+async function deleteEntry(id) {
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction(["entries", "messages"], "readwrite");
+    const entries = transaction.objectStore("entries");
+    const messages = transaction.objectStore("messages");
+    entries.delete(id);
+
+    const cursorRequest = messages.openCursor();
+    cursorRequest.onsuccess = () => {
+      const cursor = cursorRequest.result;
+      if (!cursor) return;
+      if (cursor.value.entry_id === id) {
+        cursor.update({ ...cursor.value, entry_id: null });
+      }
+      cursor.continue();
+    };
+
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error);
+  }));
+}
 
 // ── Chat sessions ───────────────────────────────────────────────────────────
 async function listSessions(petId) {
@@ -167,12 +248,50 @@ async function listMessages(sessionId) {
   const rows = await byIndex("messages", sessionId, "session_id");
   return rows.sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
 }
+// Older chats were a flat chronological list. Add parent links lazily so they
+// become one branch without requiring an IndexedDB version migration.
+async function ensureMessageTree(session) {
+  const rows = await listMessages(session.id);
+  let previousId = null;
+  const changed = [];
+  for (const message of rows) {
+    if (!Object.prototype.hasOwnProperty.call(message, "parent_id")) {
+      message.parent_id = previousId;
+      changed.push(message);
+    }
+    previousId = message.id;
+  }
+  if (changed.length) {
+    await tx("messages", "readwrite", store => {
+      changed.forEach(message => store.put(message));
+    });
+  }
+
+  let activeLeafId = session.active_leaf_id;
+  if (!rows.some(message => message.id === activeLeafId)) {
+    activeLeafId = rows.length ? rows[rows.length - 1].id : null;
+    session = await touchSession(session, { active_leaf_id: activeLeafId });
+  }
+  return { session, messages: rows };
+}
 // kind: "advice" (free chat). "log"/"summary" are legacy kinds from the older
 // interview-style flow — still rendered so old chats read correctly.
-async function addMessage(sessionId, petId, { role, kind, content, entry_id = null }) {
+async function addMessage(
+  sessionId,
+  petId,
+  {
+    role,
+    kind,
+    content,
+    thinking = null,
+    thought_seconds = null,
+    parent_id = null,
+    entry_id = null,
+  }
+) {
   const msg = {
-    id: uid(), session_id: sessionId, pet_id: petId, role, kind, content,
-    entry_id, created_at: new Date().toISOString(),
+    id: uid(), session_id: sessionId, pet_id: petId, role, kind, content, thinking,
+    thought_seconds, parent_id, entry_id, created_at: new Date().toISOString(),
   };
   await tx("messages", "readwrite", s => s.put(msg));
   return msg;

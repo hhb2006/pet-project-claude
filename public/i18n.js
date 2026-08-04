@@ -7,6 +7,8 @@ const I18N = {
   en: {
     app_title: "Pet Diary",
     app_tagline: "A gentle place to notice, record, and understand what your pets do.",
+    home_tip_moments: "Little everyday moments become a meaningful story.",
+    home_tip_private: "Your pet's memories stay private in this browser.",
     add_pet: "Add a pet",
     name_ph: "Name",
     name_label_ph: "Name",
@@ -140,6 +142,8 @@ const I18N = {
   zh: {
     app_title: "宠物日记",
     app_tagline: "一个温柔的地方，记录、观察并理解你的宠物。",
+    home_tip_moments: "日常的小瞬间，也会慢慢汇成珍贵的故事。",
+    home_tip_private: "宠物的回忆只保存在你的浏览器中。",
     add_pet: "添加宠物",
     name_ph: "名字",
     name_label_ph: "名字",

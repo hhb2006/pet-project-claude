@@ -723,7 +723,7 @@ header.page .linkbtn {
   .pet-page nav.tabs.backnav { margin: 0 0 3px -4px; min-height: 38px; }
   .pet-page nav.tabs.backnav a { padding-block: 6px; }
   .pet-page header.pet-header {
-    min-height: 78px; margin: 0 0 7px; padding: 0 16px 4px; gap: 13px;
+    min-height: 78px; margin: -5px 0 7px; padding: 0 16px 4px; gap: 13px;
   }
   .pet-page .pet-header-avatar { width: 60px; height: 60px; font-size: 1.7rem; }
   .pet-page .pet-header h1 { font-size: 1.55rem; line-height: 1.18; }

@@ -4,8 +4,9 @@
 //
 // Shape:
 //   pets        { id, name, species, breed, owner, created_at,
-//                 avatar_kind: "emoji" | "photo" | "cartoon",
-//                 avatar_original, avatar_cartoon (data URLs, or null) }
+//                 avatar_kind: "emoji" | "photo",
+//                 avatar_original (data URL or null),
+//                 avatar_cartoon (legacy data URL, retained for compatibility) }
 //   entries     { id, pet_id, logged_at, behavior_type, trigger, timestamp,
 //                 duration, intensity, recovery_period, time_of_day, edited_at }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }

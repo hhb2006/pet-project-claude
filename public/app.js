@@ -18,6 +18,8 @@ function activeAvatarSrc(pet) {
   if (!pet) return null;
   if (pet.avatar_kind === "cartoon" && pet.avatar_cartoon) return pet.avatar_cartoon;
   if (pet.avatar_original) return pet.avatar_original;
+  // Backward compatibility for an avatar saved by the removed cartoon option.
+  if (pet.avatar_cartoon) return pet.avatar_cartoon;
   return null;
 }
 function avatarHTML(pet) {

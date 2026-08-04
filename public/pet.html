@@ -7,19 +7,23 @@
 <link rel="stylesheet" href="/shared.css" />
 </head>
 <body>
-<div class="wrap">
+<div class="wrap wide">
   <div id="langSwitch"></div>
   <nav class="tabs backnav"><a href="/index.html" data-i18n="back_all_pets"></a></nav>
 
-  <header class="page">
-    <h1 id="petname">…</h1>
-    <p id="petmeta"></p>
-    <button type="button" class="linkbtn" id="editPet" data-i18n="edit_details"></button>
+  <header class="page pet-header">
+    <div class="pet-header-avatar" id="petAvatar">…</div>
+    <div class="pet-header-info">
+      <h1 id="petname">…</h1>
+      <p id="petmeta"></p>
+      <button type="button" class="linkbtn" id="editPet" data-i18n="edit_details"></button>
+    </div>
   </header>
 
   <div class="card pet-form-card" id="editCard" style="display:none; margin-bottom:16px">
     <div class="step">
       <h3 data-i18n="edit_details"></h3>
+      <div id="eAvatarMount"></div>
       <div class="petform">
         <input type="text" id="eName" data-i18n-ph="name_label_ph" />
         <select id="eSpecies"></select>
@@ -38,15 +42,16 @@
     </div>
   </div>
 
-  <div class="card">
-    <div class="subtabs">
+  <div class="workspace" id="workspace">
+    <nav class="subtabs" id="subtabs">
       <button data-tab="chat" class="active" data-i18n="tab_chat"></button>
       <button data-tab="log" data-i18n="tab_log"></button>
       <button data-tab="docs" data-i18n="tab_docs"></button>
-    </div>
+    </nav>
 
     <!-- ── CHAT ────────────────────────────────────────────────────── -->
-    <div id="tab-chat">
+    <section class="panel panel-chat card" id="tab-chat">
+      <div class="panel-head"><span class="panel-icon">💬</span><h3 data-i18n="tab_chat"></h3></div>
       <div class="sessionbar">
         <select id="sessionSel" data-i18n-title="your_chats"></select>
         <button type="button" class="ghost" id="newChat" data-i18n="new_chat"></button>
@@ -60,47 +65,52 @@
         </form>
         <p class="choicehint" id="choicehint"></p>
       </div>
-    </div>
+    </section>
 
     <!-- ── LOG (entries + the report generated from them) ──────────── -->
-    <div id="tab-log" style="display:none">
-      <div class="step">
-        <h3 data-i18n="logged_events"></h3>
-        <p class="hint" id="logCount"></p>
-        <div class="rowbtns">
-          <button id="run" data-i18n="create_report"></button>
-          <button class="ghost" id="dlLog" data-i18n="dl_log"></button>
-        </div>
-      </div>
-      <div id="analyzeOut" style="display:none">
-        <div id="flags"></div>
-        <div class="report" id="report"></div>
-        <div class="step" style="padding-top:0">
+    <section class="panel panel-log card hidden" id="tab-log">
+      <div class="panel-head"><span class="panel-icon">📒</span><h3 data-i18n="tab_log"></h3></div>
+      <div class="panel-body">
+        <div class="step">
+          <p class="hint" id="logCount"></p>
           <div class="rowbtns">
-            <button id="saveReport" data-i18n="save_to_docs"></button>
-            <button class="ghost" id="dlReport" data-i18n="dl_txt"></button>
-            <button class="ghost" id="closeReport" data-i18n="close_report"></button>
+            <button id="run" data-i18n="create_report"></button>
+            <button class="ghost" id="dlLog" data-i18n="dl_log"></button>
           </div>
         </div>
+        <div id="analyzeOut" style="display:none">
+          <div id="flags"></div>
+          <div class="report" id="report"></div>
+          <div class="step" style="padding-top:0">
+            <div class="rowbtns">
+              <button id="saveReport" data-i18n="save_to_docs"></button>
+              <button class="ghost" id="dlReport" data-i18n="dl_txt"></button>
+              <button class="ghost" id="closeReport" data-i18n="close_report"></button>
+            </div>
+          </div>
+        </div>
+        <div class="doclist" id="entrylist"></div>
       </div>
-      <div class="doclist" id="entrylist"></div>
-    </div>
+    </section>
 
     <!-- ── DOCUMENTS ───────────────────────────────────────────────── -->
-    <div id="tab-docs" style="display:none">
-      <div class="step">
-        <h3 data-i18n="add_note"></h3>
-        <input type="text" id="noteTitle" data-i18n-ph="note_title_ph" style="width:100%" />
-        <textarea id="noteBody" rows="3" data-i18n-ph="note_body_ph" style="width:100%; margin-top:8px; max-height:none"></textarea>
-        <div class="rowbtns">
-          <button id="saveNote" data-i18n="save_note"></button>
-          <button class="ghost" id="attachBtn" data-i18n="attach"></button>
-          <input type="file" id="fileInput" style="display:none" multiple />
+    <section class="panel panel-docs card hidden" id="tab-docs">
+      <div class="panel-head"><span class="panel-icon">📁</span><h3 data-i18n="tab_docs"></h3></div>
+      <div class="panel-body">
+        <div class="step">
+          <h4 data-i18n="add_note"></h4>
+          <input type="text" id="noteTitle" data-i18n-ph="note_title_ph" style="width:100%" />
+          <textarea id="noteBody" rows="3" data-i18n-ph="note_body_ph" style="width:100%; margin-top:8px; max-height:none"></textarea>
+          <div class="rowbtns">
+            <button id="saveNote" data-i18n="save_note"></button>
+            <button class="ghost" id="attachBtn" data-i18n="attach"></button>
+            <input type="file" id="fileInput" style="display:none" multiple />
+          </div>
+          <p class="hint" data-i18n="attach_hint"></p>
         </div>
-        <p class="hint" data-i18n="attach_hint"></p>
+        <div class="doclist" id="doclist"></div>
       </div>
-      <div class="doclist" id="doclist"></div>
-    </div>
+    </section>
 
   </div>
 
@@ -155,6 +165,7 @@
 <script src="/i18n.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
+<script src="/avatar.js"></script>
 <script src="/markdown.js"></script>
 <script>
   const petId = new URLSearchParams(location.search).get("id");
@@ -163,15 +174,15 @@
   function langNow() { return getLang(); }
 
   // ── Tabs ────────────────────────────────────────────────────────────
+  // All three panels render side by side on wide screens; on narrow screens
+  // this switches which single panel is visible (see the CSS media query).
   document.querySelectorAll(".subtabs button").forEach(btn => {
     btn.addEventListener("click", () => {
       document.querySelectorAll(".subtabs button").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       for (const name of ["chat", "log", "docs"]) {
-        document.getElementById("tab-" + name).style.display = (name === btn.dataset.tab) ? "block" : "none";
+        document.getElementById("tab-" + name).classList.toggle("hidden", name !== btn.dataset.tab);
       }
-      if (btn.dataset.tab === "log") renderEntries();
-      if (btn.dataset.tab === "docs") renderDocs();
     });
   });
 
@@ -1160,12 +1171,18 @@
     breedList: document.getElementById("eBreedOptions"),
   });
   const editCard = document.getElementById("editCard");
+  const eAvatarPicker = createAvatarPicker(document.getElementById("eAvatarMount"), {
+    getSpecies: () => petForm.getSpecies(),
+  });
+  document.getElementById("eSpecies").addEventListener("change", () => eAvatarPicker.refreshEmoji());
+  document.getElementById("eSpeciesOther").addEventListener("input", () => eAvatarPicker.refreshEmoji());
 
   document.getElementById("editPet").addEventListener("click", () => {
     const open = editCard.style.display !== "none";
     if (open) { editCard.style.display = "none"; return; }
     document.getElementById("eName").value = pet.name;
     petForm.setValues(pet.species, pet.breed);
+    eAvatarPicker.setValues(pet);
     editCard.style.display = "block";
     document.getElementById("eName").focus();
   });
@@ -1175,7 +1192,10 @@
     if (!name) { alert(t("ask_name")); return; }
     const species = petForm.getSpecies();
     if (!species) { alert(t("ask_species")); return; }
-    pet = await updatePet({ ...pet, name, species, breed: petForm.getBreed() });
+    pet = await updatePet({
+      ...pet, name, species, breed: petForm.getBreed(),
+      ...eAvatarPicker.getAvatar(),
+    });
     applyPet();
     await refreshMeta();
     await renderEntries();
@@ -1196,6 +1216,7 @@
   function applyPet() {
     document.title = `${pet.name} · ${t("app_title")}`;
     document.getElementById("petname").textContent = pet.name;
+    document.getElementById("petAvatar").innerHTML = avatarHTML(pet);
     input.placeholder = t("chat_ph", { name: pet.name });
   }
 
@@ -1204,6 +1225,10 @@
     if (!pet) { location.href = "/index.html"; return; }
     applyPet();
     await refreshMeta();
+    // The log and documents panels sit next to chat at all times on wide
+    // screens, so they need their content ready from the start.
+    await renderEntries();
+    await renderDocs();
 
     // Pick up where you left off, or start a fresh chat.
     const sessions = await refreshSessions();

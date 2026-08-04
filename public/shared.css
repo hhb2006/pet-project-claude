@@ -354,7 +354,10 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .subtabs button.active { background: var(--accent-soft); color: var(--accent); }
 
 @media (min-width: 981px) {
-  .panel-chat, .panel-log, .panel-docs { height: 76vh; }
+  .panel-chat, .panel-log, .panel-docs {
+    height: calc(100vh - 170px);
+    height: calc(100dvh - 170px);
+  }
   .panel-chat .chat { flex: 1; min-height: 0; }
   .panel-log .panel-body, .panel-docs .panel-body { flex: 1; overflow-y: auto; min-height: 0; }
 }
@@ -708,6 +711,26 @@ header.page .linkbtn {
   box-shadow: 0 5px 14px rgba(91, 69, 57, 0.06);
 }
 .langswitch button.active { box-shadow: 0 2px 8px rgba(55, 111, 96, 0.12); }
+
+/* Keep the desktop pet workspace within one browser viewport. Each panel owns
+   its scrolling, while the page header stays compact and fully visible. */
+@media (min-width: 981px) {
+  body.pet-page { padding-top: 8px; padding-bottom: 8px; }
+  .pet-page .wrap.wide { position: relative; }
+  .pet-page .langswitch {
+    position: absolute; z-index: 4; top: 0; right: 0; margin: 0;
+  }
+  .pet-page nav.tabs.backnav { margin: 0 0 3px -4px; min-height: 38px; }
+  .pet-page nav.tabs.backnav a { padding-block: 6px; }
+  .pet-page header.pet-header {
+    min-height: 78px; margin: 0 0 7px; padding: 0 16px 4px; gap: 13px;
+  }
+  .pet-page .pet-header-avatar { width: 60px; height: 60px; font-size: 1.7rem; }
+  .pet-page .pet-header h1 { font-size: 1.55rem; line-height: 1.18; }
+  .pet-page .pet-header p { line-height: 1.25; }
+  .pet-page header.page .linkbtn { margin-top: 3px; padding: 2px 8px; }
+  .pet-page .note { margin: 6px 0 0; line-height: 1.3; }
+}
 
 @media (max-width: 680px) {
   body { padding: 12px 11px 28px; }

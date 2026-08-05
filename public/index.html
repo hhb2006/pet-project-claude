@@ -8,8 +8,17 @@
 </head>
 <body data-title-key="app_title">
 <div class="wrap">
+  <aside class="home-side-card home-side-card-left">
+    <span class="home-side-icon" aria-hidden="true">🐶</span>
+    <p data-i18n="home_tip_moments"></p>
+  </aside>
+  <aside class="home-side-card home-side-card-right">
+    <span class="home-side-icon" aria-hidden="true">🐱</span>
+    <p data-i18n="home_tip_private"></p>
+  </aside>
   <div id="langSwitch"></div>
   <header class="page">
+    <div class="home-kicker"><span aria-hidden="true">🐾</span><span data-i18n="home_kicker"></span></div>
     <h1>🐾 <span data-i18n="app_title"></span></h1>
     <p data-i18n="app_tagline"></p>
   </header>
@@ -17,6 +26,7 @@
   <div class="card pet-form-card" style="margin-bottom:16px">
     <div class="step">
       <h3 data-i18n="add_pet"></h3>
+      <div id="avatarMount"></div>
       <div class="petform">
         <input type="text" id="name" data-i18n-ph="name_ph" />
         <select id="species">
@@ -44,6 +54,7 @@
 <script src="/i18n.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
+<script src="/avatar.js"></script>
 <script>
   const petsEl = document.getElementById("pets");
   const form = wireSpeciesBreed({
@@ -53,6 +64,11 @@
     breedInput: document.getElementById("breed"),
     breedList: document.getElementById("breedOptions"),
   });
+  const avatarPicker = createAvatarPicker(document.getElementById("avatarMount"), {
+    getSpecies: () => form.getSpecies(),
+  });
+  document.getElementById("species").addEventListener("change", () => avatarPicker.refreshEmoji());
+  document.getElementById("speciesOther").addEventListener("input", () => avatarPicker.refreshEmoji());
 
   async function render() {
     const pets = await listPets();
@@ -73,7 +89,7 @@
       const kind = [breedLabel(pet.species, pet.breed), speciesDisplay(pet.species)].filter(Boolean).join(" · ");
       tile.innerHTML = `
         <div class="petrow">
-          <div class="avatar">${emojiFor(pet.species)}</div>
+          <div class="avatar">${avatarHTML(pet)}</div>
           <div class="grow">
             <h2>${esc(pet.name)}</h2>
             <p>${kind ? esc(kind) + " · " : ""}${nEntries(entries.length)} · ${nDocs(docs.length)}${last ? " · " + last : ""}</p>
@@ -104,9 +120,10 @@
     if (!name) { alert(t("ask_name")); return; }
     const species = form.getSpecies();
     if (!species) { alert(t("ask_species")); return; }
-    await createPet({ name, species, breed: form.getBreed() });
+    await createPet({ name, species, breed: form.getBreed(), ...avatarPicker.getAvatar() });
     document.getElementById("name").value = "";
     form.reset();
+    avatarPicker.reset();
     render();
   });
   document.getElementById("name").addEventListener("keydown", e => {

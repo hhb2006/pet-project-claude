@@ -550,6 +550,43 @@ function emojiFor(species) {
   return "🐾";
 }
 
+function foldBreedSearch(value) {
+  return String(value || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase()
+    .replace(/[\s()[\]{}'’.,/\\_\-]+/g, " ")
+    .trim();
+}
+
+function breedSearchScore(species, breed, query) {
+  const needle = foldBreedSearch(query);
+  if (!needle) return 0;
+  const tokens = needle.split(" ").filter(Boolean);
+  const labels = [...new Set([breed, breedLabel(species, breed)])].map(foldBreedSearch);
+  if (labels.some(label => label === needle)) return 0;
+  if (labels.some(label => label.startsWith(needle))) return 1;
+  if (labels.some(label => label.split(" ").some(word => word.startsWith(needle)))) return 2;
+  if (labels.some(label => tokens.every(token => label.includes(token)))) return 3;
+  if (labels.some(label => label.includes(needle))) return 4;
+  return Number.POSITIVE_INFINITY;
+}
+
+function appendHighlightedText(parent, label, query) {
+  const needle = String(query || "").trim();
+  const foldedLabel = String(label).toLocaleLowerCase();
+  const index = needle ? foldedLabel.indexOf(needle.toLocaleLowerCase()) : -1;
+  if (index < 0) {
+    parent.textContent = label;
+    return;
+  }
+  parent.appendChild(document.createTextNode(label.slice(0, index)));
+  const mark = document.createElement("mark");
+  mark.textContent = label.slice(index, index + needle.length);
+  parent.appendChild(mark);
+  parent.appendChild(document.createTextNode(label.slice(index + needle.length)));
+}
+
 // Wires a species <select> to a single searchable breed combobox. Users can
 // type to filter or choose from the dropdown, while still accepting a breed
 // that is not in the curated list.
@@ -565,6 +602,17 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
   let currentBreeds = [];
   let visibleBreeds = [];
   let activeIndex = -1;
+  const clearButton = document.createElement("button");
+  clearButton.type = "button";
+  clearButton.className = "breed-clear";
+  clearButton.textContent = "×";
+  clearButton.hidden = true;
+  clearButton.setAttribute("aria-label", typeof t === "function" ? t("clear_breed") : "Clear breed search");
+  breedBox.insertBefore(clearButton, breedList);
+
+  function updateClearButton() {
+    clearButton.hidden = !breedInput.value;
+  }
 
   function closeBreedList() {
     breedList.hidden = true;
@@ -575,6 +623,7 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
 
   function chooseBreed(breed) {
     breedInput.value = breedLabel(speciesSel.value, breed);
+    updateClearButton();
     closeBreedList();
   }
 
@@ -592,11 +641,11 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
   }
 
   function renderBreedList(query = "") {
-    const needle = String(query).trim().toLocaleLowerCase();
-    visibleBreeds = currentBreeds.filter(b =>
-      !needle || [b, breedLabel(speciesSel.value, b)]
-        .some(label => label.toLocaleLowerCase().includes(needle))
-    );
+    visibleBreeds = currentBreeds
+      .map((breed, index) => ({ breed, index, score: breedSearchScore(speciesSel.value, breed, query) }))
+      .filter(result => Number.isFinite(result.score))
+      .sort((a, b) => a.score - b.score || a.index - b.index)
+      .map(result => result.breed);
     breedList.innerHTML = "";
     activeIndex = -1;
     if (!visibleBreeds.length) {
@@ -612,18 +661,41 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
       option.className = "breed-option";
       option.setAttribute("role", "option");
       option.setAttribute("aria-selected", "false");
-      option.textContent = breedLabel(speciesSel.value, breed);
+      const primaryLabel = breedLabel(speciesSel.value, breed);
+      const primary = document.createElement("span");
+      primary.className = "breed-option-label";
+      appendHighlightedText(primary, primaryLabel, query);
+      option.appendChild(primary);
+      if (primaryLabel !== breed) {
+        const secondary = document.createElement("span");
+        secondary.className = "breed-option-secondary";
+        appendHighlightedText(secondary, breed, query);
+        option.appendChild(secondary);
+      }
       option.addEventListener("mousedown", event => event.preventDefault());
       option.addEventListener("click", () => chooseBreed(breed));
       breedList.appendChild(option);
     });
   }
 
-  function openBreedList() {
+  function exactBreed(value) {
+    const folded = foldBreedSearch(value);
+    return currentBreeds.find(breed =>
+      [breed, breedLabel(speciesSel.value, breed)]
+        .some(label => foldBreedSearch(label) === folded)
+    );
+  }
+
+  function openBreedList(filterTypedValue = false) {
     if (!currentBreeds.length) return;
-    renderBreedList(breedInput.value);
+    const selected = exactBreed(breedInput.value);
+    renderBreedList(filterTypedValue || !selected ? breedInput.value : "");
     breedList.hidden = false;
     breedInput.setAttribute("aria-expanded", "true");
+    if (selected && !filterTypedValue) {
+      const selectedIndex = visibleBreeds.indexOf(selected);
+      if (selectedIndex >= 0) setActive(selectedIndex);
+    }
   }
 
   function populateBreeds(species, selected) {
@@ -640,6 +712,7 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
     if (selected) breedInput.value = breeds && breeds.includes(selected)
       ? breedLabel(species, selected)
       : selected;
+    updateClearButton();
     closeBreedList();
   }
 
@@ -650,14 +723,28 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
     populateBreeds(v);
   });
 
-  breedInput.addEventListener("focus", openBreedList);
-  breedInput.addEventListener("click", openBreedList);
-  breedInput.addEventListener("input", openBreedList);
+  breedInput.addEventListener("focus", () => openBreedList(false));
+  breedInput.addEventListener("click", () => openBreedList(false));
+  breedInput.addEventListener("input", () => {
+    updateClearButton();
+    openBreedList(true);
+  });
+  clearButton.addEventListener("mousedown", event => event.preventDefault());
+  clearButton.addEventListener("click", () => {
+    breedInput.value = "";
+    updateClearButton();
+    breedInput.focus();
+    openBreedList(true);
+  });
   breedInput.addEventListener("keydown", event => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (breedList.hidden) openBreedList();
-      setActive(activeIndex + (event.key === "ArrowDown" ? 1 : -1));
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = activeIndex < 0
+        ? (direction > 0 ? 0 : visibleBreeds.length - 1)
+        : activeIndex + direction;
+      setActive(nextIndex);
     } else if (event.key === "Enter" && activeIndex >= 0) {
       event.preventDefault();
       chooseBreed(visibleBreeds[activeIndex]);
@@ -677,10 +764,10 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
   function canonicalBreed(species, value) {
     const typed = String(value || "").trim();
     const breeds = BREEDS[species] || [];
-    const folded = typed.toLocaleLowerCase();
+    const folded = foldBreedSearch(typed);
     const match = breeds.find(b =>
       b !== OTHER && [b, breedLabel(species, b)]
-        .some(label => label.toLocaleLowerCase() === folded)
+        .some(label => foldBreedSearch(label) === folded)
     );
     return match || typed;
   }
@@ -713,9 +800,13 @@ function wireSpeciesBreed({ speciesSel, speciesOther, breedBox, breedInput, bree
       breedInput.value = ""; breedBox.style.display = "none";
       breedList.innerHTML = "";
       currentBreeds = [];
+      updateClearButton();
       closeBreedList();
     },
   };
 }
 
-if (typeof module !== "undefined") module.exports = { SPECIES, BREEDS, BREED_ZH, emojiFor, speciesLabel, speciesDisplay, breedLabel, sortedBreeds, MIXED, OTHER };
+if (typeof module !== "undefined") module.exports = {
+  SPECIES, BREEDS, BREED_ZH, emojiFor, speciesLabel, speciesDisplay,
+  breedLabel, sortedBreeds, foldBreedSearch, breedSearchScore, MIXED, OTHER,
+};

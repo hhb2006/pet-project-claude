@@ -12,6 +12,21 @@ function fmt(v) {
   return typeof t === "function" ? t("not_recorded") : "not recorded";
 }
 
+// Picks the pet's active avatar image (cartoon or original), or null to fall
+// back to the species emoji.
+function activeAvatarSrc(pet) {
+  if (!pet) return null;
+  if (pet.avatar_kind === "cartoon" && pet.avatar_cartoon) return pet.avatar_cartoon;
+  if (pet.avatar_original) return pet.avatar_original;
+  // Backward compatibility for an avatar saved by the removed cartoon option.
+  if (pet.avatar_cartoon) return pet.avatar_cartoon;
+  return null;
+}
+function avatarHTML(pet) {
+  const src = activeAvatarSrc(pet);
+  return src ? `<img class="avatar-img" src="${esc(src)}" alt="" />` : emojiFor(pet.species);
+}
+
 function fileSize(bytes) {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";

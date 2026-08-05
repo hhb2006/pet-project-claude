@@ -20,24 +20,23 @@
   </nav>
 
   <main id="mainContent">
-    <section class="landing-hero">
-      <div class="hero-copy">
-        <div class="home-kicker">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.4-7.5-10.4A4.1 4.1 0 0 1 12 7.8a4.1 4.1 0 0 1 7.5 2.3c0 6-7.5 10.4-7.5 10.4Z"/></svg>
-          <span data-i18n="home_kicker"></span>
-        </div>
-        <h1><span data-i18n="home_hero_title"></span> <em data-i18n="home_hero_highlight"></em></h1>
-        <p class="hero-lead" data-i18n="app_tagline"></p>
-        <div class="hero-actions">
-          <a class="home-cta home-cta-primary" href="#addPetCard" data-i18n="home_cta_add"></a>
-        </div>
-        <div class="hero-core-features" aria-label="Pet Diary features">
-          <span data-i18n="tab_chat"></span>
-          <span data-i18n="tab_log"></span>
-          <span data-i18n="tab_docs"></span>
-        </div>
-        <p class="hero-proof-line"><span aria-hidden="true">✓</span><span data-i18n="home_proof_private"></span></p>
+    <header class="home-intro">
+      <div class="home-kicker">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.4-7.5-10.4A4.1 4.1 0 0 1 12 7.8a4.1 4.1 0 0 1 7.5 2.3c0 6-7.5 10.4-7.5 10.4Z"/></svg>
+        <span data-i18n="home_kicker"></span>
       </div>
+      <h1><span data-i18n="home_hero_title"></span> <em data-i18n="home_hero_highlight"></em></h1>
+    </header>
+
+    <div class="landing-hero">
+      <section class="hero-gallery home-gallery" id="petGallery" aria-labelledby="petGalleryTitle">
+        <header class="home-section-head">
+          <span class="section-eyebrow" data-i18n="home_gallery_eyebrow"></span>
+          <h2 id="petGalleryTitle" data-i18n="home_gallery_title"></h2>
+          <p data-i18n="home_gallery_intro"></p>
+        </header>
+        <div class="tiles" id="pets"></div>
+      </section>
 
       <div class="card pet-form-card hero-form-card" id="addPetCard">
         <div class="step">
@@ -73,18 +72,7 @@
           <div class="rowbtns"><button id="add" data-i18n="home_create_diary"></button></div>
         </div>
       </div>
-    </section>
-
-    <section class="home-section home-gallery" id="petGallery" aria-labelledby="petGalleryTitle">
-      <header class="home-section-head home-section-head-row">
-        <div>
-          <span class="section-eyebrow" data-i18n="home_gallery_eyebrow"></span>
-          <h2 id="petGalleryTitle" data-i18n="home_gallery_title"></h2>
-        </div>
-        <p data-i18n="home_gallery_intro"></p>
-      </header>
-      <div class="tiles" id="pets"></div>
-    </section>
+    </div>
 
     <section class="home-section" aria-labelledby="careToolkitTitle">
       <header class="home-section-head">

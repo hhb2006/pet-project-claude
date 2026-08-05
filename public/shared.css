@@ -1,20 +1,20 @@
 :root {
-  --bg: #fbf7f2;
-  --card: #fffdfa;
-  --ink: #3c3835;
-  --muted: #756d68;
-  --accent: #bd7656;
-  --accent-strong: #9f5d43;
-  --accent-soft: #f7ebe4;
-  --accent-2: #75a995;
-  --accent-2-soft: #eaf3ef;
-  --secondary: #dec383;
-  --pink: #c9879b;
-  --pink-soft: #f7ebef;
-  --user: #e7f1ed;
-  --line: #eadbd2;
-  --shadow: 6px 6px 0 rgba(159, 93, 67, 0.08), inset 0 -3px rgba(60, 56, 53, 0.02);
-  --shadow-hover: 8px 8px 0 rgba(159, 93, 67, 0.13), inset 0 -3px rgba(60, 56, 53, 0.025);
+  --bg: #fff9f4;
+  --card: #fffefd;
+  --ink: #3f3531;
+  --muted: #7f716a;
+  --accent: #4f8b79;
+  --accent-strong: #376f60;
+  --accent-soft: #e7f4ee;
+  --accent-2: #e9816d;
+  --accent-2-soft: #ffede5;
+  --secondary: #e9b98f;
+  --pink: #e9816d;
+  --pink-soft: #ffede5;
+  --user: #def0e9;
+  --line: #eadfd8;
+  --shadow: 0 14px 38px rgba(91, 69, 57, 0.09);
+  --shadow-hover: 0 18px 46px rgba(91, 69, 57, 0.15);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -22,16 +22,16 @@
     --card: #282321;
     --ink: #f1e8e2;
     --muted: #b2a39b;
-    --accent: #d69679;
-    --accent-strong: #e8aa8e;
-    --accent-soft: #3d2d27;
-    --accent-2: #83b8a5;
-    --accent-2-soft: #243832;
-    --secondary: #c8ad73;
-    --pink: #d094a6;
-    --pink-soft: #3a2b31;
-    --user: #293c36;
-    --line: #493b35;
+    --accent: #72c3aa;
+    --accent-strong: #8fd7c1;
+    --accent-soft: #243831;
+    --accent-2: #f0a08c;
+    --accent-2-soft: #422d28;
+    --secondary: #d9a982;
+    --pink: #f0a08c;
+    --pink-soft: #422d28;
+    --user: #294038;
+    --line: #403733;
     --shadow: 0 14px 38px rgba(0, 0, 0, 0.32);
     --shadow-hover: 0 18px 48px rgba(0, 0, 0, 0.42);
   }
@@ -258,7 +258,7 @@ button.linkbtn, .linkbtn { box-shadow: none !important; transform: none !importa
   padding: 6px 13px; font-size: 0.82rem; font-weight: 600;
 }
 .avatar-source-options button.active {
-  background: var(--card); color: var(--accent); box-shadow: 0 3px 10px rgba(159, 93, 67, 0.1);
+  background: var(--card); color: var(--accent); box-shadow: 0 3px 10px rgba(55, 111, 96, 0.12);
 }
 .avatar-hint { margin: 0; }
 
@@ -663,12 +663,12 @@ textarea:focus, input:focus, select:focus {
 
 #add, #send, #savePet, #run, #saveReport, #saveNote, #saveLogDialog {
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  box-shadow: 0 7px 18px rgba(159, 93, 67, 0.16);
+  box-shadow: 0 7px 18px rgba(55, 111, 96, 0.2);
 }
 #add:hover:not(:disabled), #send:hover:not(:disabled), #savePet:hover:not(:disabled),
 #run:hover:not(:disabled), #saveReport:hover:not(:disabled), #saveNote:hover:not(:disabled),
 #saveLogDialog:hover:not(:disabled) {
-  box-shadow: 0 10px 24px rgba(159, 93, 67, 0.22);
+  box-shadow: 0 10px 24px rgba(55, 111, 96, 0.27);
 }
 #add { min-width: 118px; }
 #send { min-width: 76px; border-radius: 14px; }
@@ -731,8 +731,8 @@ header.page .linkbtn {
 .msg { line-height: 1.58; }
 .msg.user {
   background: linear-gradient(145deg, var(--user), var(--accent-soft));
-  border: 1px solid rgba(117, 169, 149, 0.2);
-  box-shadow: 0 5px 14px rgba(117, 169, 149, 0.08);
+  border: 1px solid rgba(79, 139, 121, 0.18);
+  box-shadow: 0 5px 14px rgba(55, 111, 96, 0.08);
 }
 .msg.assistant { box-shadow: 0 5px 14px rgba(91, 69, 57, 0.06); }
 .msg.advice {
@@ -759,14 +759,14 @@ header.page .linkbtn {
   box-shadow: var(--shadow); margin-bottom: 10px;
 }
 .subtabs button { flex: 1; }
-.subtabs button.active { box-shadow: inset 0 0 0 1px rgba(189, 118, 86, 0.1); }
+.subtabs button.active { box-shadow: inset 0 0 0 1px rgba(79, 139, 121, 0.12); }
 
 .langswitch {
   width: fit-content; margin: 0 0 8px auto; padding: 3px;
   border: 1px solid var(--line); border-radius: 999px; background: var(--card);
   box-shadow: 0 5px 14px rgba(91, 69, 57, 0.06);
 }
-.langswitch button.active { box-shadow: 0 2px 8px rgba(159, 93, 67, 0.1); }
+.langswitch button.active { box-shadow: 0 2px 8px rgba(55, 111, 96, 0.12); }
 
 /* Keep the desktop pet workspace within one browser viewport. Each panel owns
    its scrolling, while the page header stays compact and fully visible. */

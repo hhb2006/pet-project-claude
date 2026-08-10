@@ -16,7 +16,17 @@
     <div class="pet-header-info">
       <h1 id="petname">…</h1>
       <p id="petmeta"></p>
-      <button type="button" class="linkbtn" id="editPet" data-i18n="edit_details"></button>
+      <div class="pet-header-actions">
+        <button type="button" class="linkbtn" id="editPet" data-i18n="edit_details"></button>
+        <button type="button" class="album-entry" id="openAlbum" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75v12.5A1.75 1.75 0 0 1 18.25 20H5.75A1.75 1.75 0 0 1 4 18.25V5.75Z" />
+            <path d="m5 17 4.2-4.2a1.2 1.2 0 0 1 1.7 0l1.6 1.6 1.1-1.1a1.2 1.2 0 0 1 1.7 0L19 17M15.5 9h.01" />
+          </svg>
+          <span data-i18n="pet_album"></span>
+          <small id="albumEntryCount"></small>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -111,32 +121,10 @@
       </div>
     </section>
 
-    <!-- ── ARCHIVES + PET ALBUM ────────────────────────────────────── -->
+    <!-- ── ARCHIVES ───────────────────────────────────────────────── -->
     <section class="panel panel-docs card hidden" id="tab-docs">
       <div class="panel-head"><span class="panel-icon">📁</span><h3 data-i18n="tab_docs"></h3></div>
       <div class="panel-body">
-        <section class="archive-section album-section" aria-labelledby="albumTitle">
-          <div class="archive-section-head">
-            <div>
-              <h4 id="albumTitle" data-i18n="pet_album"></h4>
-              <p data-i18n="album_intro"></p>
-            </div>
-          </div>
-          <div class="album-form">
-            <label class="ffield" for="photoDate">
-              <span data-i18n="photo_date"></span>
-              <input type="date" id="photoDate" />
-            </label>
-            <label class="ffield" for="photoCaption">
-              <span data-i18n="photo_caption"></span>
-              <input type="text" id="photoCaption" data-i18n-ph="photo_caption_ph" />
-            </label>
-            <button type="button" id="photoBtn" data-i18n="add_photos"></button>
-            <input type="file" id="photoInput" accept="image/*" multiple hidden />
-          </div>
-          <div class="photo-timeline" id="photoTimeline" aria-live="polite"></div>
-        </section>
-
         <section class="archive-section" aria-labelledby="archiveItemsTitle">
           <div class="archive-section-head archive-items-head">
             <div>
@@ -207,6 +195,32 @@
       <button type="submit" id="saveLogDialog" data-i18n="save_to_log"></button>
     </div>
   </form>
+</dialog>
+
+<dialog class="album-dialog" id="albumDialog" aria-labelledby="albumTitle">
+  <div class="album-dialog-shell">
+    <div class="album-dialog-head">
+      <div>
+        <h2 id="albumTitle" data-i18n="pet_album"></h2>
+        <p data-i18n="album_intro"></p>
+      </div>
+      <button type="button" class="dialog-close" id="closeAlbum"
+              data-i18n-title="close" data-i18n-aria-label="close">×</button>
+    </div>
+    <div class="album-form">
+      <label class="ffield" for="photoDate">
+        <span data-i18n="photo_date"></span>
+        <input type="date" id="photoDate" />
+      </label>
+      <label class="ffield" for="photoCaption">
+        <span data-i18n="photo_caption"></span>
+        <input type="text" id="photoCaption" data-i18n-ph="photo_caption_ph" />
+      </label>
+      <button type="button" id="photoBtn" data-i18n="add_photos"></button>
+      <input type="file" id="photoInput" accept="image/*" multiple hidden />
+    </div>
+    <div class="photo-timeline" id="photoTimeline" aria-live="polite"></div>
+  </div>
 </dialog>
 
 <dialog class="photo-dialog" id="photoDialog" aria-labelledby="photoDialogTitle"
@@ -1015,13 +1029,14 @@
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); document.getElementById("composer").requestSubmit(); }
   });
 
-  // ── Archives + pet album ────────────────────────────────────────────
+  // ── Archives + standalone pet album ─────────────────────────────────
   let photoObjectUrls = [];
   let activePhoto = null;
   let activePhotoUrl = null;
 
   function isPhotoAttachment(attachment) {
-    return attachment.kind === "photo" || String(attachment.type || "").startsWith("image/");
+    return attachment.kind === "photo" ||
+      (!attachment.kind && String(attachment.type || "").startsWith("image/"));
   }
 
   function albumDateValue(attachment) {
@@ -1121,7 +1136,7 @@
       del.onclick = async () => {
         if (!confirm(t("confirm_del_photo"))) return;
         await deleteAttachment(photo.id);
-        await renderDocs();
+        await renderAlbum();
         await refreshMeta();
       };
       actions.append(dl, del);
@@ -1130,12 +1145,17 @@
     }
   }
 
+  async function renderAlbum() {
+    const attachments = await listAttachments(petId);
+    if (!albumDialog.open) return;
+    const photos = attachments.filter(isPhotoAttachment).sort((a, b) =>
+      String(albumDateValue(b)).localeCompare(String(albumDateValue(a))));
+    renderPhotoTimeline(photos);
+  }
+
   async function renderDocs() {
     const [docs, atts] = await Promise.all([listDocuments(petId), listAttachments(petId)]);
-    const photos = atts.filter(isPhotoAttachment).sort((a, b) =>
-      String(albumDateValue(b)).localeCompare(String(albumDateValue(a))));
     const files = atts.filter(attachment => !isPhotoAttachment(attachment));
-    renderPhotoTimeline(photos);
     const el = document.getElementById("doclist");
     if (!docs.length && !files.length) {
       el.innerHTML = `<div class="empty">${t("no_docs")}<br />${t("no_docs_sub")}</div>`;
@@ -1191,7 +1211,7 @@
   });
   document.getElementById("attachBtn").addEventListener("click", () => document.getElementById("fileInput").click());
   document.getElementById("fileInput").addEventListener("change", async (e) => {
-    for (const file of e.target.files) await addAttachment(petId, file);
+    for (const file of e.target.files) await addAttachment(petId, file, { kind: "file" });
     e.target.value = "";
     await renderDocs();
     await refreshMeta();
@@ -1201,6 +1221,19 @@
   const localToday = new Date();
   localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
   photoDate.value = localToday.toISOString().slice(0, 10);
+  const albumDialog = document.getElementById("albumDialog");
+  function closeAlbumDialog() {
+    if (albumDialog.open) albumDialog.close();
+  }
+  document.getElementById("openAlbum").addEventListener("click", async () => {
+    albumDialog.showModal();
+    await renderAlbum();
+  });
+  document.getElementById("closeAlbum").addEventListener("click", closeAlbumDialog);
+  albumDialog.addEventListener("close", releaseTimelinePhotoUrls);
+  albumDialog.addEventListener("click", event => {
+    if (event.target === event.currentTarget) closeAlbumDialog();
+  });
   document.getElementById("photoBtn").addEventListener("click", () => document.getElementById("photoInput").click());
   document.getElementById("photoInput").addEventListener("change", async (event) => {
     const caption = document.getElementById("photoCaption").value.trim();
@@ -1210,7 +1243,7 @@
     }
     event.target.value = "";
     document.getElementById("photoCaption").value = "";
-    await renderDocs();
+    await renderAlbum();
     await refreshMeta();
   });
 
@@ -1227,7 +1260,7 @@
     const id = activePhoto.id;
     closePhotoDialog();
     await deleteAttachment(id);
-    await renderDocs();
+    await renderAlbum();
     await refreshMeta();
   });
   window.addEventListener("beforeunload", () => {
@@ -1477,8 +1510,11 @@
       listAttachments(petId),
     ]);
     const kind = [breedLabel(pet.species, pet.breed), speciesDisplay(pet.species)].filter(Boolean).join(" · ");
+    const photos = attachments.filter(isPhotoAttachment);
+    const archiveFiles = attachments.length - photos.length;
     document.getElementById("petmeta").textContent =
-      `${kind ? kind + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + attachments.length)}`;
+      `${kind ? kind + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + archiveFiles)} · ${nPhotos(photos.length)}`;
+    document.getElementById("albumEntryCount").textContent = nPhotos(photos.length);
   }
 
   // Everything that reflects the pet's name/species, in one place so an edit
@@ -1495,7 +1531,7 @@
     if (!pet) { location.href = "/index.html"; return; }
     applyPet();
     await refreshMeta();
-    // The log and documents panels sit next to chat at all times on wide
+    // The log and archives panels sit next to chat at all times on wide
     // screens, so they need their content ready from the start.
     await renderEntries();
     await renderDocs();

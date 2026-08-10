@@ -140,6 +140,10 @@
         listAttachments(pet.id),
       ]);
       const last = entries.length ? t("last_logged", { d: fmtDate(entries[entries.length - 1].logged_at) }) : null;
+      const photos = attachments.filter(attachment =>
+        attachment.kind === "photo" ||
+        (!attachment.kind && String(attachment.type || "").startsWith("image/")));
+      const archiveFiles = attachments.length - photos.length;
       const tile = document.createElement("div");
       tile.className = "tile";
       tile.tabIndex = 0;
@@ -151,7 +155,7 @@
           <div class="avatar">${avatarHTML(pet)}</div>
           <div class="grow">
             <h2>${esc(pet.name)}</h2>
-            <p>${kind ? esc(kind) + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + attachments.length)}${last ? " · " + last : ""}</p>
+            <p>${kind ? esc(kind) + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + archiveFiles)} · ${nPhotos(photos.length)}${last ? " · " + last : ""}</p>
           </div>
           <button class="del">${t("delete")}</button>
         </div>`;

@@ -389,6 +389,7 @@ function t(key, vars) {
 // Counts: English pluralizes, Chinese uses measure words.
 function nEntries(n) { return getLang() === "zh" ? `${n} 条记录` : `${n} ${n === 1 ? "entry" : "entries"}`; }
 function nArchives(n) { return getLang() === "zh" ? `${n} 份档案` : `${n} ${n === 1 ? "archive item" : "archive items"}`; }
+function nPhotos(n) { return getLang() === "zh" ? `${n} 张照片` : `${n} ${n === 1 ? "photo" : "photos"}`; }
 function nDocs(n) { return nArchives(n); }
 function nEvents(n) { return getLang() === "zh" ? `${n} 个事件` : `${n} logged ${n === 1 ? "event" : "events"}`; }
 

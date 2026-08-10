@@ -140,6 +140,30 @@ header.pet-header {
   text-align: left;
 }
 .pet-header-info { min-width: 0; }
+.pet-header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; margin-top: 7px; }
+.pet-header-actions #editPet { margin-top: 0; }
+.album-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 44px;
+  padding: 7px 12px;
+  color: var(--ink);
+  background: var(--card);
+  border-color: color-mix(in srgb, var(--pink) 38%, var(--line));
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--pink) 14%, transparent);
+}
+.album-entry:hover:not(:disabled) { background: var(--pink-soft); }
+.album-entry svg {
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: var(--pink);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.album-entry small { color: var(--muted); font-size: 0.72rem; font-weight: 650; }
 .pet-header-avatar {
   flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%;
   background: var(--accent-soft); display: grid; place-items: center;
@@ -595,6 +619,45 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 }
 .album-form input { width: 100%; min-height: 44px; }
 .album-form button { width: 100%; min-height: 44px; }
+.album-dialog {
+  width: min(92vw, 820px);
+  max-height: min(90vh, 820px);
+  max-height: min(90dvh, 820px);
+  padding: 0;
+  color: var(--ink);
+  background: var(--card);
+  border: 2px solid var(--line);
+  border-top: 6px solid var(--pink);
+  border-radius: 24px;
+  box-shadow: 8px 8px 0 color-mix(in srgb, var(--pink) 16%, transparent), 0 24px 80px rgba(30, 25, 20, 0.26);
+}
+.album-dialog[open] { animation: dialog-pop 220ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+.album-dialog::backdrop { background: rgba(28, 24, 20, 0.52); backdrop-filter: blur(3px); }
+.album-dialog-shell { max-height: min(88vh, 800px); max-height: min(88dvh, 800px); overflow-y: auto; }
+.album-dialog-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px 14px;
+  background: color-mix(in srgb, var(--card) 94%, var(--pink-soft));
+  border-bottom: 1px solid var(--line);
+}
+.album-dialog-head h2 { margin: 0; font-size: 1.2rem; }
+.album-dialog-head p { margin: 4px 0 0; color: var(--muted); font-size: 0.84rem; line-height: 1.45; }
+.album-dialog .dialog-close { width: 44px; height: 44px; }
+.album-dialog .album-form {
+  grid-template-columns: minmax(150px, 0.65fr) minmax(220px, 1fr) auto;
+  align-items: end;
+  padding-top: 16px;
+}
+.album-dialog .album-form button { width: auto; }
+.album-dialog .photo-timeline { padding-right: 20px; padding-bottom: 24px; padding-left: 42px; }
+.album-dialog .photo-timeline::before { left: 25px; }
+.album-dialog .timeline-date > span { left: -21px; }
 .photo-timeline {
   position: relative;
   padding: 2px 14px 18px 30px;
@@ -715,7 +778,19 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .timeline-date > span { left: -20px; }
 }
 
+@media (max-width: 620px) {
+  .pet-header-actions { justify-content: center; }
+  .album-dialog { width: calc(100vw - 24px); }
+  .album-dialog-head { padding: 16px; }
+  .album-dialog .album-form { grid-template-columns: 1fr; padding: 14px 16px 17px; }
+  .album-dialog .album-form button { width: 100%; }
+  .album-dialog .photo-timeline { padding-right: 14px; padding-left: 31px; }
+  .album-dialog .photo-timeline::before { left: 19px; }
+  .album-dialog .timeline-date > span { left: -18px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .album-dialog[open] { animation: none; }
   .album-photo-preview img { transition: none; }
   .album-photo-preview:hover img,
   .album-photo-preview:focus-visible img { transform: none; }

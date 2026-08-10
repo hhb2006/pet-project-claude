@@ -7,47 +7,103 @@
 <link rel="stylesheet" href="/shared.css" />
 </head>
 <body data-title-key="app_title">
-<div class="wrap">
-  <aside class="home-side-card home-side-card-left">
-    <span class="home-side-icon" aria-hidden="true">🐶</span>
-    <p data-i18n="home_tip_moments"></p>
-  </aside>
-  <aside class="home-side-card home-side-card-right">
-    <span class="home-side-icon" aria-hidden="true">🐱</span>
-    <p data-i18n="home_tip_private"></p>
-  </aside>
-  <div id="langSwitch"></div>
-  <header class="page">
-    <div class="home-kicker"><span aria-hidden="true">🐾</span><span data-i18n="home_kicker"></span></div>
-    <h1>🐾 <span data-i18n="app_title"></span></h1>
-    <p data-i18n="app_tagline"></p>
-  </header>
+<a class="skip-link" href="#mainContent" data-i18n="skip_to_content"></a>
+<div class="wrap home-wrap">
+  <nav class="home-nav" aria-label="Pet Diary">
+    <a class="home-brand" href="/index.html">
+      <span class="home-brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" role="presentation"><path d="M8.2 10.2c-1.4.2-2.4 1.4-3.1 2.7-1.6 3-.1 6.1 3.4 6.1h7c3.5 0 5-3.1 3.4-6.1-.7-1.3-1.7-2.5-3.1-2.7-1.2-.2-2.1.5-3.8.5s-2.6-.7-3.8-.5ZM5.3 8.7C6.6 8.5 7.4 7 7.1 5.4 6.8 3.8 5.5 2.7 4.2 3 2.9 3.2 2.1 4.7 2.4 6.3c.3 1.6 1.6 2.7 2.9 2.4Zm13.4 0c1.3.3 2.6-.8 2.9-2.4.3-1.6-.5-3.1-1.8-3.3-1.3-.3-2.6.8-2.9 2.4-.3 1.6.5 3.1 1.8 3.3ZM9.7 7.8c1.3 0 2.3-1.3 2.3-2.9S11 2 9.7 2 7.4 3.3 7.4 4.9s1 2.9 2.3 2.9Zm4.6 0c1.3 0 2.3-1.3 2.3-2.9S15.6 2 14.3 2 12 3.3 12 4.9s1 2.9 2.3 2.9Z"/></svg>
+      </span>
+      <span data-i18n="app_title"></span>
+    </a>
+    <div id="langSwitch"></div>
+  </nav>
 
-  <div class="card pet-form-card" style="margin-bottom:16px">
-    <div class="step">
-      <h3 data-i18n="add_pet"></h3>
-      <div id="avatarMount"></div>
-      <div class="petform">
-        <input type="text" id="name" data-i18n-ph="name_ph" />
-        <select id="species">
-          <option value="" disabled selected>Species…</option>
-        </select>
-        <input type="text" id="speciesOther" data-i18n-ph="species_other_ph" style="display:none" />
-        <div class="breed-combobox" id="breedBox" style="display:none">
-          <input type="search" id="breed" data-i18n-ph="breed_ph" autocomplete="off"
-                 role="combobox" aria-autocomplete="list" aria-expanded="false"
-                 aria-controls="breedOptions" />
-          <div class="breed-options" id="breedOptions" role="listbox" hidden></div>
+  <main id="mainContent">
+    <header class="home-intro">
+      <div class="home-kicker">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5s-7.5-4.4-7.5-10.4A4.1 4.1 0 0 1 12 7.8a4.1 4.1 0 0 1 7.5 2.3c0 6-7.5 10.4-7.5 10.4Z"/></svg>
+        <span data-i18n="home_kicker"></span>
+      </div>
+      <h1><span data-i18n="home_hero_title"></span> <em data-i18n="home_hero_highlight"></em></h1>
+    </header>
+
+    <div class="landing-hero">
+      <section class="hero-gallery home-gallery" id="petGallery" aria-labelledby="petGalleryTitle">
+        <header class="home-section-head">
+          <span class="section-eyebrow" data-i18n="home_gallery_eyebrow"></span>
+          <h2 id="petGalleryTitle" data-i18n="home_gallery_title"></h2>
+          <p data-i18n="home_gallery_intro"></p>
+        </header>
+        <div class="tiles" id="pets"></div>
+      </section>
+
+      <div class="card pet-form-card hero-form-card" id="addPetCard">
+        <div class="step">
+          <div class="form-heading">
+            <span class="form-step-badge" data-i18n="home_form_step"></span>
+            <div>
+              <h2 data-i18n="add_pet"></h2>
+              <p data-i18n="home_form_intro"></p>
+            </div>
+          </div>
+          <div id="avatarMount"></div>
+          <div class="petform">
+            <label class="home-form-field" for="name">
+              <span data-i18n="name_label_ph"></span>
+              <input type="text" id="name" data-i18n-ph="name_ph" autocomplete="off" />
+            </label>
+            <label class="home-form-field" for="species">
+              <span data-i18n="home_species_label"></span>
+              <select id="species">
+                <option value="" disabled selected>Species…</option>
+              </select>
+            </label>
+            <input type="text" id="speciesOther" data-i18n-ph="species_other_ph" style="display:none" />
+            <div class="breed-combobox home-form-field" id="breedBox" style="display:none">
+              <label for="breed" data-i18n="home_breed_label"></label>
+              <input type="search" id="breed" data-i18n-ph="breed_ph" autocomplete="off"
+                     role="combobox" aria-autocomplete="list" aria-expanded="false"
+                     aria-controls="breedOptions" />
+              <div class="breed-options" id="breedOptions" role="listbox" hidden></div>
+            </div>
+          </div>
+          <p class="hint" data-i18n="pet_hint"></p>
+          <div class="rowbtns"><button id="add" data-i18n="home_create_diary"></button></div>
         </div>
       </div>
-      <p class="hint" data-i18n="pet_hint"></p>
-      <div class="rowbtns"><button id="add" data-i18n="create"></button></div>
     </div>
-  </div>
 
-  <div class="tiles" id="pets"></div>
+    <section class="home-section" aria-labelledby="careToolkitTitle">
+      <header class="home-section-head">
+        <span class="section-eyebrow" data-i18n="home_services_eyebrow"></span>
+        <h2 id="careToolkitTitle" data-i18n="home_services_title"></h2>
+        <p data-i18n="home_services_intro"></p>
+      </header>
+      <div class="service-grid">
+        <article class="service-package service-chat">
+          <span class="service-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M7 18.5 3.5 21v-5A8.5 8.5 0 1 1 7 18.5Z"/><path d="M8 10h8M8 14h5"/></svg></span>
+          <span class="service-label" data-i18n="tab_chat"></span>
+          <h3 data-i18n="home_service_chat_title"></h3>
+          <p data-i18n="home_service_chat_body"></p>
+        </article>
+        <article class="service-package service-log">
+          <span class="service-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 3.5h11a2 2 0 0 1 2 2v15H7a2 2 0 0 1-2-2v-14a1 1 0 0 1 1-1Z"/><path d="M8 3.5v17M11 8h5M11 12h5"/></svg></span>
+          <span class="service-label" data-i18n="tab_log"></span>
+          <h3 data-i18n="home_service_log_title"></h3>
+          <p data-i18n="home_service_log_body"></p>
+        </article>
+        <article class="service-package service-docs">
+          <span class="service-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3.5 7.5h6l2-3h9v15h-17v-12Z"/><path d="M3.5 9h17"/></svg></span>
+          <span class="service-label" data-i18n="tab_docs"></span>
+          <h3 data-i18n="home_service_docs_title"></h3>
+          <p data-i18n="home_service_docs_body"></p>
+        </article>
+      </div>
+    </section>
 
-  <p class="note" data-i18n="privacy_note"></p>
+    <p class="note" data-i18n="privacy_note"></p>
+  </main>
 </div>
 
 <script src="/db.js"></script>

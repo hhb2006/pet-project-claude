@@ -134,8 +134,11 @@
     }
     petsEl.innerHTML = "";
     for (const pet of pets) {
-      const entries = await listEntries(pet.id);
-      const docs = await listDocuments(pet.id);
+      const [entries, docs, attachments] = await Promise.all([
+        listEntries(pet.id),
+        listDocuments(pet.id),
+        listAttachments(pet.id),
+      ]);
       const last = entries.length ? t("last_logged", { d: fmtDate(entries[entries.length - 1].logged_at) }) : null;
       const tile = document.createElement("div");
       tile.className = "tile";
@@ -148,7 +151,7 @@
           <div class="avatar">${avatarHTML(pet)}</div>
           <div class="grow">
             <h2>${esc(pet.name)}</h2>
-            <p>${kind ? esc(kind) + " · " : ""}${nEntries(entries.length)} · ${nDocs(docs.length)}${last ? " · " + last : ""}</p>
+            <p>${kind ? esc(kind) + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + attachments.length)}${last ? " · " + last : ""}</p>
           </div>
           <button class="del">${t("delete")}</button>
         </div>`;

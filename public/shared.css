@@ -206,7 +206,7 @@ header.pet-header {
 
 /* Composer / forms */
 .composer { display: flex; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
-textarea, input[type="text"], input[type="number"], input[type="search"] {
+textarea, input[type="text"], input[type="number"], input[type="search"], input[type="date"] {
   flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px;
   padding: 11px 14px; font: inherit; color: inherit; background: var(--bg); max-height: 140px;
 }
@@ -546,6 +546,181 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .entryfields dt { color: var(--muted); }
 .entryfields dd { margin: 0; }
 
+/* Log search and filters */
+.log-tools {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 11px 0 0;
+}
+.log-tools input,
+.log-tools select {
+  width: 100%;
+  min-height: 44px;
+  padding-block: 9px;
+  font-size: 0.86rem;
+}
+.log-clear {
+  min-height: 44px;
+  padding: 7px 12px;
+  justify-self: start;
+  font-size: 0.82rem;
+}
+.filter-summary {
+  min-height: 18px;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.filter-empty { padding-inline: 14px; }
+
+/* Archives and the dated pet photo timeline */
+.archive-section { border-bottom: 1px solid var(--line); }
+.archive-section:last-child { border-bottom: 0; }
+.archive-section-head { padding: 17px 18px 10px; }
+.archive-section-head h4 { margin: 0; font-size: 1rem; }
+.archive-section-head p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+.archive-items-head { padding-bottom: 0; }
+.archive-note-form { padding-top: 14px; }
+.album-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 9px;
+  padding: 4px 18px 17px;
+}
+.album-form input { width: 100%; min-height: 44px; }
+.album-form button { width: 100%; min-height: 44px; }
+.photo-timeline {
+  position: relative;
+  padding: 2px 14px 18px 30px;
+}
+.photo-timeline::before {
+  content: "";
+  position: absolute;
+  top: 17px;
+  bottom: 20px;
+  left: 18px;
+  width: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-2) 35%, var(--line));
+}
+.timeline-date {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 28px;
+  margin: 8px 0 7px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+}
+.timeline-date > span {
+  position: absolute;
+  left: -18px;
+  width: 10px;
+  height: 10px;
+  background: var(--card);
+  border: 3px solid var(--accent-2);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--accent-2-soft);
+}
+.album-photo {
+  position: relative;
+  overflow: hidden;
+  margin: 0 0 11px;
+  background: color-mix(in srgb, var(--accent-2-soft) 42%, var(--card));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+.album-photo-preview {
+  display: block;
+  width: 100%;
+  padding: 0;
+  background: var(--accent-2-soft);
+  border: 0;
+  border-radius: 0;
+  overflow: hidden;
+  cursor: zoom-in;
+}
+.album-photo-preview img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  transition: transform 180ms ease;
+}
+.album-photo-preview:hover img,
+.album-photo-preview:focus-visible img { transform: scale(1.025); }
+.album-photo-preview:focus-visible { outline: 3px solid var(--accent); outline-offset: -3px; }
+.album-photo-copy { display: grid; gap: 3px; padding: 10px 11px 4px; }
+.album-photo-copy strong { font-size: 0.88rem; line-height: 1.35; overflow-wrap: anywhere; }
+.album-photo-copy span { color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.album-photo-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 10px 10px; }
+.album-photo-actions button { min-height: 44px; padding: 7px 10px; font-size: 0.76rem; }
+.album-empty {
+  position: relative;
+  padding: 20px 8px 11px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+.photo-dialog {
+  width: min(92vw, 760px);
+  max-height: 90vh;
+  padding: 0;
+  color: var(--ink);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: 0 24px 80px rgba(30, 25, 20, 0.32);
+}
+.photo-dialog::backdrop { background: rgba(28, 24, 20, 0.66); backdrop-filter: blur(3px); }
+.photo-dialog-inner { position: relative; }
+.photo-dialog-close {
+  position: absolute;
+  z-index: 2;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  background: var(--card);
+}
+.photo-dialog img {
+  display: block;
+  width: 100%;
+  max-height: 65vh;
+  object-fit: contain;
+  background: #181615;
+}
+.photo-dialog-copy { padding: 17px 20px 20px; }
+.photo-dialog-copy h2 { margin: 0; font-size: 1.15rem; overflow-wrap: anywhere; }
+.photo-dialog-copy p { margin: 5px 0 0; color: var(--muted); font-size: 0.82rem; }
+.photo-dialog-copy .dialog-actions { margin-top: 14px; }
+
+@media (min-width: 521px) and (max-width: 980px) {
+  .log-tools { grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr) auto; align-items: center; }
+  .log-clear { justify-self: stretch; }
+  .album-form { grid-template-columns: minmax(140px, 0.65fr) minmax(0, 1fr) auto; align-items: end; }
+  .album-form button { width: auto; }
+  .photo-timeline { padding-left: 38px; }
+  .photo-timeline::before { left: 24px; }
+  .album-photo { display: grid; grid-template-columns: 132px minmax(0, 1fr); }
+  .album-photo-preview { grid-row: 1 / 3; }
+  .album-photo-preview img { height: 100%; min-height: 118px; aspect-ratio: auto; }
+  .timeline-date > span { left: -20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .album-photo-preview img { transition: none; }
+  .album-photo-preview:hover img,
+  .album-photo-preview:focus-visible img { transform: none; }
+}
+
 /* "Edit details" under the pet's name */
 header.page .linkbtn { margin-top: 6px; }
 details summary { cursor: pointer; color: var(--accent); font-size: 0.88rem; }
@@ -650,7 +825,7 @@ body[data-title-key] header.page p {
   transform: rotate(-6deg);
 }
 
-textarea, input[type="text"], input[type="number"], input[type="search"], select {
+textarea, input[type="text"], input[type="number"], input[type="search"], input[type="date"], select {
   min-height: 46px; border-color: var(--line); background-color: var(--card);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
   transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
@@ -869,7 +1044,7 @@ button.linkbtn, .linkbtn, .petrow .del, .breed-clear,
   box-shadow: none;
 }
 
-textarea, input[type="text"], input[type="number"], input[type="search"], select {
+textarea, input[type="text"], input[type="number"], input[type="search"], input[type="date"], select {
   border-width: 2px;
   border-radius: 14px;
 }
@@ -1039,6 +1214,17 @@ body[data-title-key] .wrap.home-wrap {
   transform: translateY(-160%);
 }
 .skip-link:focus { transform: translateY(0); outline: 3px solid var(--card); outline-offset: 2px; }
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
 
 .home-nav {
   display: flex;

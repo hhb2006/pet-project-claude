@@ -811,8 +811,8 @@
     const summary = document.createElement("summary");
     summary.textContent = t("thinking");
     const thinkingBody = document.createElement("div");
-    thinkingBody.className = "thinking-body";
-    const thinkingRenderer = createStreamingMarkdownRenderer(thinkingBody);
+    thinkingBody.className = "thinking-body streaming-thinking-text";
+    const thinkingRenderer = createStreamingTextRenderer(thinkingBody);
     details.append(summary, thinkingBody);
 
     const answerElement = document.createElement("div");
@@ -833,6 +833,7 @@
       status,
       details,
       summary,
+      thinkingBody,
       thinkingRenderer,
       answerElement,
       answerRenderer,
@@ -847,7 +848,8 @@
 
   function queueStreamingFlush(pending, startedAt) {
     if (pending.flushTimer !== null) return;
-    pending.flushTimer = setTimeout(() => flushStreamingReply(pending, startedAt), 100);
+    const delay = pending.queuedAnswer ? 100 : 200;
+    pending.flushTimer = setTimeout(() => flushStreamingReply(pending, startedAt), delay);
   }
 
   function flushStreamingReply(pending, startedAt) {
@@ -870,17 +872,19 @@
       if (!pending.hasAnswer) {
         pending.hasAnswer = true;
         pending.status.remove();
+        if (pending.hasThinking) {
+          pending.thinkingRenderer.finish();
+          pending.thinkingBody.classList.remove("streaming-thinking-text");
+        }
         pending.answerElement.hidden = false;
         pending.details.open = false;
       }
       pending.answerRenderer.append(pending.queuedAnswer);
       pending.queuedAnswer = "";
     }
-    if (pending.hasThinking) {
+    if (pending.hasThinking && pending.hasAnswer) {
       const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-      pending.summary.textContent = pending.hasAnswer
-        ? t("thought_for", { s: seconds })
-        : t("thinking");
+      pending.summary.textContent = t("thought_for", { s: seconds });
     }
     if (followOutput) chatlog.scrollTop = chatlog.scrollHeight;
   }

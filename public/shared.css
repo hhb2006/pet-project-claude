@@ -525,6 +525,7 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   margin: 10px 0 0; padding-left: 12px; border-left: 2px solid var(--line);
   font-size: 0.88rem; line-height: 1.55;
 }
+.streaming-thinking-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .stream-status { color: var(--muted); font-style: italic; }
 .stream-markdown-live > :first-child { margin-top: 0; }
 .stream-markdown-live > :last-child { margin-bottom: 0; }

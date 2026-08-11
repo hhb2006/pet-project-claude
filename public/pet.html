@@ -16,7 +16,20 @@
     <div class="pet-header-info">
       <h1 id="petname">…</h1>
       <p id="petmeta"></p>
-      <button type="button" class="linkbtn" id="editPet" data-i18n="edit_details"></button>
+      <div class="pet-header-actions">
+        <button type="button" class="linkbtn" id="editPet" data-i18n="edit_details"></button>
+        <button type="button" class="album-entry" id="openAlbum" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 5.75A1.75 1.75 0 0 1 5.75 4h12.5A1.75 1.75 0 0 1 20 5.75v12.5A1.75 1.75 0 0 1 18.25 20H5.75A1.75 1.75 0 0 1 4 18.25V5.75Z" />
+            <path d="m5 17 4.2-4.2a1.2 1.2 0 0 1 1.7 0l1.6 1.6 1.1-1.1a1.2 1.2 0 0 1 1.7 0L19 17M15.5 9h.01" />
+          </svg>
+          <span data-i18n="pet_album"></span>
+          <span class="album-entry-plus" aria-hidden="true">
+            <svg viewBox="0 0 20 20"><path d="M10 5v10M5 10h10" /></svg>
+          </span>
+          <small id="albumEntryCount"></small>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -73,6 +86,24 @@
       <div class="panel-body">
         <div class="step">
           <p class="hint" id="logCount"></p>
+          <div class="log-tools" role="search" aria-label="Log search and filters" data-i18n-aria-label="log_tools_label">
+            <label class="log-search" for="logSearch">
+              <span class="visually-hidden" data-i18n="log_search_label"></span>
+              <input type="search" id="logSearch" data-i18n-ph="log_search_ph" autocomplete="off" />
+            </label>
+            <label class="log-filter" for="logFilter">
+              <span class="visually-hidden" data-i18n="log_filter_label"></span>
+              <select id="logFilter">
+                <option value="all" data-i18n="log_filter_all"></option>
+                <option value="last7" data-i18n="log_filter_7d"></option>
+                <option value="last30" data-i18n="log_filter_30d"></option>
+                <option value="high" data-i18n="log_filter_high"></option>
+                <option value="trigger" data-i18n="log_filter_trigger"></option>
+              </select>
+            </label>
+            <button type="button" class="ghost log-clear" id="clearLogFilters" data-i18n="clear_filters" hidden></button>
+          </div>
+          <p class="filter-summary" id="logFilterSummary" aria-live="polite"></p>
           <div class="rowbtns">
             <button id="run" data-i18n="create_report"></button>
             <button class="ghost" id="dlLog" data-i18n="dl_log"></button>
@@ -93,11 +124,18 @@
       </div>
     </section>
 
-    <!-- ── DOCUMENTS ───────────────────────────────────────────────── -->
+    <!-- ── ARCHIVES ───────────────────────────────────────────────── -->
     <section class="panel panel-docs card hidden" id="tab-docs">
       <div class="panel-head"><span class="panel-icon">📁</span><h3 data-i18n="tab_docs"></h3></div>
       <div class="panel-body">
-        <div class="step">
+        <section class="archive-section" aria-labelledby="archiveItemsTitle">
+          <div class="archive-section-head archive-items-head">
+            <div>
+              <h4 id="archiveItemsTitle" data-i18n="archive_items"></h4>
+              <p data-i18n="archive_items_intro"></p>
+            </div>
+          </div>
+          <div class="step archive-note-form">
           <h4 data-i18n="add_note"></h4>
           <input type="text" id="noteTitle" data-i18n-ph="note_title_ph" style="width:100%" />
           <textarea id="noteBody" rows="3" data-i18n-ph="note_body_ph" style="width:100%; margin-top:8px; max-height:none"></textarea>
@@ -107,8 +145,9 @@
             <input type="file" id="fileInput" style="display:none" multiple />
           </div>
           <p class="hint" data-i18n="attach_hint"></p>
-        </div>
-        <div class="doclist" id="doclist"></div>
+          </div>
+          <div class="doclist" id="doclist"></div>
+        </section>
       </div>
     </section>
 
@@ -161,8 +200,89 @@
   </form>
 </dialog>
 
+<dialog class="log-dialog archive-edit-dialog" id="archiveEditDialog"
+        aria-labelledby="archiveEditTitle" aria-describedby="archiveEditHint">
+  <form id="archiveEditForm">
+    <div class="dialog-head">
+      <div>
+        <h2 id="archiveEditTitle" data-i18n="edit_archive"></h2>
+        <p id="archiveEditHint" data-i18n="edit_archive_hint"></p>
+      </div>
+      <button type="button" class="dialog-close" id="closeArchiveEdit"
+              data-i18n-title="close" data-i18n-aria-label="close">×</button>
+    </div>
+    <div class="archive-edit-fields">
+      <label class="ffield" for="archiveEditName">
+        <span data-i18n="archive_name"></span>
+        <input type="text" id="archiveEditName" />
+      </label>
+      <label class="ffield" for="archiveEditBody">
+        <span id="archiveEditBodyLabel"></span>
+        <textarea id="archiveEditBody" rows="8"></textarea>
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="ghost" id="cancelArchiveEdit" data-i18n="cancel"></button>
+      <button type="submit" id="saveArchiveEdit" data-i18n="save_changes"></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="album-dialog" id="albumDialog" aria-labelledby="albumTitle">
+  <div class="album-dialog-shell">
+    <div class="album-dialog-head">
+      <div>
+        <h2 id="albumTitle" data-i18n="pet_album"></h2>
+        <p data-i18n="album_intro"></p>
+      </div>
+      <button type="button" class="dialog-close" id="closeAlbum"
+              data-i18n-title="close" data-i18n-aria-label="close">×</button>
+    </div>
+    <div class="album-form">
+      <label class="ffield" for="photoDate">
+        <span data-i18n="photo_date"></span>
+        <input type="date" id="photoDate" />
+      </label>
+      <label class="ffield" for="photoCaption">
+        <span data-i18n="photo_caption"></span>
+        <input type="text" id="photoCaption" data-i18n-ph="photo_caption_ph" />
+      </label>
+      <button type="button" id="photoBtn" data-i18n="add_photos"></button>
+      <input type="file" id="photoInput" accept="image/*" multiple hidden />
+    </div>
+    <div class="album-view-controls">
+      <label for="photoDisplaySize">
+        <span data-i18n="photo_display_size"></span>
+        <output id="photoDisplaySizeValue" for="photoDisplaySize">43%</output>
+      </label>
+      <input type="range" id="photoDisplaySize" min="30" max="100" step="1" value="43" />
+      <div class="album-size-scale" aria-hidden="true"><span>30%</span><span>100%</span></div>
+    </div>
+    <div class="photo-timeline" id="photoTimeline" aria-live="polite"></div>
+  </div>
+</dialog>
+
+<dialog class="photo-dialog" id="photoDialog" aria-labelledby="photoDialogTitle"
+        aria-describedby="photoDialogMeta">
+  <div class="photo-dialog-inner">
+    <button type="button" class="dialog-close photo-dialog-close" id="closePhotoDialog"
+            data-i18n-title="close" data-i18n-aria-label="close">×</button>
+    <img id="photoDialogImage" alt="" />
+    <div class="photo-dialog-copy">
+      <h2 id="photoDialogTitle"></h2>
+      <p id="photoDialogMeta"></p>
+      <div class="dialog-actions">
+        <button type="button" id="downloadPhoto" data-i18n="download"></button>
+        <button type="button" class="ghost" id="deletePhoto" data-i18n="delete"></button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
 <script src="/db.js"></script>
 <script src="/i18n.js"></script>
+<script src="/log-filter.js"></script>
+<script src="/pet-memory.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
 <script src="/avatar.js"></script>
@@ -172,6 +292,14 @@
   let pet = null;
   function petContext() { return { name: pet.name, species: pet.species, breed: pet.breed || "" }; }
   function langNow() { return getLang(); }
+  async function petMemoryContext() {
+    const [entries, documents, attachments] = await Promise.all([
+      listEntries(petId),
+      listDocuments(petId),
+      listAttachments(petId),
+    ]);
+    return PetMemory.build({ entries, documents, attachments });
+  }
 
   // ── Tabs ────────────────────────────────────────────────────────────
   // All three panels render side by side on wide screens; on narrow screens
@@ -592,9 +720,11 @@
       const history = activePath
         .filter(m => m.kind === "advice")
         .map(m => ({ role: m.role, content: m.content }));
+      const memory = await petMemoryContext();
       const res = await fetchAdviceStream({
         messages: history,
         pet: petContext(),
+        memory,
         lang: langNow(),
       }, controller.signal);
 
@@ -720,8 +850,8 @@
     const summary = document.createElement("summary");
     summary.textContent = t("thinking");
     const thinkingBody = document.createElement("div");
-    thinkingBody.className = "thinking-body";
-    const thinkingRenderer = createStreamingMarkdownRenderer(thinkingBody);
+    thinkingBody.className = "thinking-body streaming-thinking-text";
+    const thinkingRenderer = createStreamingTextRenderer(thinkingBody);
     details.append(summary, thinkingBody);
 
     const answerElement = document.createElement("div");
@@ -742,6 +872,7 @@
       status,
       details,
       summary,
+      thinkingBody,
       thinkingRenderer,
       answerElement,
       answerRenderer,
@@ -756,7 +887,8 @@
 
   function queueStreamingFlush(pending, startedAt) {
     if (pending.flushTimer !== null) return;
-    pending.flushTimer = setTimeout(() => flushStreamingReply(pending, startedAt), 100);
+    const delay = pending.queuedAnswer ? 100 : 200;
+    pending.flushTimer = setTimeout(() => flushStreamingReply(pending, startedAt), delay);
   }
 
   function flushStreamingReply(pending, startedAt) {
@@ -779,17 +911,19 @@
       if (!pending.hasAnswer) {
         pending.hasAnswer = true;
         pending.status.remove();
+        if (pending.hasThinking) {
+          pending.thinkingRenderer.finish();
+          pending.thinkingBody.classList.remove("streaming-thinking-text");
+        }
         pending.answerElement.hidden = false;
         pending.details.open = false;
       }
       pending.answerRenderer.append(pending.queuedAnswer);
       pending.queuedAnswer = "";
     }
-    if (pending.hasThinking) {
+    if (pending.hasThinking && pending.hasAnswer) {
       const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-      pending.summary.textContent = pending.hasAnswer
-        ? t("thought_for", { s: seconds })
-        : t("thinking");
+      pending.summary.textContent = t("thought_for", { s: seconds });
     }
     if (followOutput) chatlog.scrollTop = chatlog.scrollHeight;
   }
@@ -949,11 +1083,198 @@
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); document.getElementById("composer").requestSubmit(); }
   });
 
-  // ── Documents ───────────────────────────────────────────────────────
+  // ── Archives + standalone pet album ─────────────────────────────────
+  let photoObjectUrls = [];
+  let activePhoto = null;
+  let activePhotoUrl = null;
+
+  function isPhotoAttachment(attachment) {
+    return attachment.kind === "photo" ||
+      (!attachment.kind && String(attachment.type || "").startsWith("image/"));
+  }
+
+  function albumDateValue(attachment) {
+    return attachment.taken_at || attachment.created_at;
+  }
+
+  function albumDateLabel(value) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) {
+      return fmtDate(`${value}T12:00:00`);
+    }
+    return fmtDate(value);
+  }
+
+  function releaseTimelinePhotoUrls() {
+    for (const url of photoObjectUrls) URL.revokeObjectURL(url);
+    photoObjectUrls = [];
+  }
+
+  function releaseActivePhotoUrl() {
+    if (activePhotoUrl) URL.revokeObjectURL(activePhotoUrl);
+    activePhotoUrl = null;
+    activePhoto = null;
+    const image = document.getElementById("photoDialogImage");
+    image.removeAttribute("src");
+    image.alt = "";
+  }
+
+  function closePhotoDialog() {
+    const dialog = document.getElementById("photoDialog");
+    if (dialog.open) dialog.close();
+    else releaseActivePhotoUrl();
+  }
+
+  function openPhotoDialog(attachment) {
+    const dialog = document.getElementById("photoDialog");
+    if (activePhotoUrl) URL.revokeObjectURL(activePhotoUrl);
+    activePhoto = attachment;
+    activePhotoUrl = URL.createObjectURL(attachment.blob);
+    const image = document.getElementById("photoDialogImage");
+    image.src = activePhotoUrl;
+    image.alt = attachment.caption || t("photo_alt", { name: pet.name });
+    document.getElementById("photoDialogTitle").textContent = attachment.caption || attachment.name;
+    document.getElementById("photoDialogMeta").textContent =
+      `${albumDateLabel(albumDateValue(attachment))} · ${fileSize(attachment.size)}`;
+    dialog.showModal();
+  }
+
+  function renderPhotoTimeline(photos) {
+    const timeline = document.getElementById("photoTimeline");
+    releaseTimelinePhotoUrls();
+    if (!photos.length) {
+      timeline.innerHTML = `<div class="album-empty">${t("no_photos")}</div>`;
+      return;
+    }
+    timeline.innerHTML = "";
+    let currentDate = null;
+    let currentPhotoGrid = null;
+    for (const photo of photos) {
+      const rawDate = albumDateValue(photo);
+      const dateKey = String(rawDate || "").slice(0, 10);
+      if (dateKey !== currentDate) {
+        currentDate = dateKey;
+        const group = document.createElement("div");
+        group.className = "timeline-group";
+        const marker = document.createElement("div");
+        marker.className = "timeline-date";
+        marker.innerHTML = `<span aria-hidden="true"></span><time datetime="${esc(dateKey)}">${esc(albumDateLabel(rawDate))}</time>`;
+        currentPhotoGrid = document.createElement("div");
+        currentPhotoGrid.className = "timeline-photo-grid";
+        group.append(marker, currentPhotoGrid);
+        timeline.appendChild(group);
+      }
+
+      const card = document.createElement("article");
+      card.className = "album-photo";
+      const preview = document.createElement("button");
+      preview.type = "button";
+      preview.className = "album-photo-preview";
+      preview.setAttribute("aria-label", t("view_photo", { name: photo.caption || photo.name }));
+      const image = document.createElement("img");
+      const objectUrl = URL.createObjectURL(photo.blob);
+      photoObjectUrls.push(objectUrl);
+      image.src = objectUrl;
+      image.loading = "lazy";
+      image.decoding = "async";
+      image.alt = photo.caption || t("photo_alt", { name: pet.name });
+      preview.appendChild(image);
+      preview.onclick = () => openPhotoDialog(photo);
+
+      const copy = document.createElement("div");
+      copy.className = "album-photo-copy";
+      const title = document.createElement("strong");
+      title.textContent = photo.caption || photo.name;
+      const meta = document.createElement("span");
+      meta.textContent = `${photo.name} · ${fileSize(photo.size)}`;
+      copy.append(title, meta);
+
+      const actions = document.createElement("div");
+      actions.className = "album-photo-actions";
+      const dl = document.createElement("button");
+      dl.type = "button"; dl.className = "ghost"; dl.textContent = t("download");
+      dl.onclick = () => download(photo.blob, photo.name);
+      const del = document.createElement("button");
+      del.type = "button"; del.className = "ghost"; del.textContent = t("delete");
+      del.onclick = async () => {
+        if (!confirm(t("confirm_del_photo"))) return;
+        await deleteAttachment(photo.id);
+        await renderAlbum();
+        await refreshMeta();
+      };
+      actions.append(dl, del);
+      card.append(preview, copy, actions);
+      currentPhotoGrid.appendChild(card);
+    }
+  }
+
+  async function renderAlbum() {
+    const attachments = await listAttachments(petId);
+    if (!albumDialog.open) return;
+    const photos = attachments.filter(isPhotoAttachment).sort((a, b) =>
+      String(albumDateValue(b)).localeCompare(String(albumDateValue(a))));
+    renderPhotoTimeline(photos);
+  }
+
+  const archiveEditDialog = document.getElementById("archiveEditDialog");
+  const archiveEditForm = document.getElementById("archiveEditForm");
+  const archiveEditName = document.getElementById("archiveEditName");
+  const archiveEditBody = document.getElementById("archiveEditBody");
+  const archiveEditBodyLabel = document.getElementById("archiveEditBodyLabel");
+  const saveArchiveEdit = document.getElementById("saveArchiveEdit");
+  let archiveEditTarget = null;
+
+  function closeArchiveEditor() {
+    if (archiveEditDialog.open) archiveEditDialog.close();
+  }
+
+  function openArchiveEditor(type, item) {
+    archiveEditTarget = { type, id: item.id };
+    archiveEditName.value = item.title || item.name || "";
+    archiveEditBody.value = type === "document" ? (item.body || "") : (item.caption || "");
+    archiveEditBodyLabel.textContent = t(type === "document" ? "archive_content" : "archive_description");
+    archiveEditDialog.showModal();
+    archiveEditName.focus();
+    archiveEditName.select();
+  }
+
+  document.getElementById("closeArchiveEdit").addEventListener("click", closeArchiveEditor);
+  document.getElementById("cancelArchiveEdit").addEventListener("click", closeArchiveEditor);
+  archiveEditDialog.addEventListener("click", event => {
+    if (event.target === event.currentTarget) closeArchiveEditor();
+  });
+  archiveEditDialog.addEventListener("close", () => { archiveEditTarget = null; });
+  archiveEditForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const target = archiveEditTarget;
+    const name = archiveEditName.value.trim();
+    if (!target || !name) {
+      alert(t("archive_name_required"));
+      archiveEditName.focus();
+      return;
+    }
+    saveArchiveEdit.disabled = true;
+    try {
+      if (target.type === "document") {
+        await updateDocument(target.id, { title: name, body: archiveEditBody.value });
+      } else {
+        await updateAttachment(target.id, { name, caption: archiveEditBody.value });
+      }
+      closeArchiveEditor();
+      await renderDocs();
+      await refreshMeta();
+    } catch (error) {
+      console.error("Could not update archive item", error);
+      alert(t("archive_save_failed"));
+    } finally {
+      saveArchiveEdit.disabled = false;
+    }
+  });
+
   async function renderDocs() {
     const [docs, atts] = await Promise.all([listDocuments(petId), listAttachments(petId)]);
+    const files = atts.filter(attachment => !isPhotoAttachment(attachment));
     const el = document.getElementById("doclist");
-    if (!docs.length && !atts.length) {
+    if (!docs.length && !files.length) {
       el.innerHTML = `<div class="empty">${t("no_docs")}<br />${t("no_docs_sub")}</div>`;
       return;
     }
@@ -963,12 +1284,14 @@
       item.className = "docitem";
       item.innerHTML = `
         <h4>${d.kind === "report" ? "📄" : "📝"} ${esc(d.title)}</h4>
-        <div class="meta">${d.kind === "report" ? t("doc_report") : t("doc_note")} · ${fmtDate(d.created_at)}</div>
+        <div class="meta">${d.kind === "report" ? t("doc_report") : t("doc_note")} · ${fmtDate(d.created_at)}${d.edited_at ? " · " + t("edited") : ""}</div>
         <details><summary>${t("read")}</summary><div class="body">${esc(d.body)}</div></details>
         <div class="actions">
+          <button class="ghost edit">${t("edit")}</button>
           <button class="ghost dl">${t("download")}</button>
           <button class="ghost del">${t("delete")}</button>
         </div>`;
+      item.querySelector(".edit").onclick = () => openArchiveEditor("document", d);
       item.querySelector(".dl").onclick = () =>
         download(d.body, `${d.title.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}.txt`, "text/plain");
       item.querySelector(".del").onclick = async () => {
@@ -977,20 +1300,23 @@
       };
       el.appendChild(item);
     }
-    for (const a of atts) {
+    for (const a of files) {
       const item = document.createElement("div");
       item.className = "docitem";
       item.innerHTML = `
         <h4>📎 ${esc(a.name)}</h4>
-        <div class="meta">${esc(a.type)} · ${fileSize(a.size)} · ${fmtDate(a.created_at)}</div>
+        <div class="meta">${esc(a.type)} · ${fileSize(a.size)} · ${fmtDate(a.created_at)}${a.edited_at ? " · " + t("edited") : ""}</div>
+        ${a.caption ? `<div class="body">${esc(a.caption)}</div>` : ""}
         <div class="actions">
+          <button class="ghost edit">${t("edit")}</button>
           <button class="ghost dl">${t("download")}</button>
           <button class="ghost del">${t("delete")}</button>
         </div>`;
+      item.querySelector(".edit").onclick = () => openArchiveEditor("attachment", a);
       item.querySelector(".dl").onclick = () => download(a.blob, a.name);
       item.querySelector(".del").onclick = async () => {
         if (!confirm(t("confirm_del_doc", { title: a.name }))) return;
-        await deleteAttachment(a.id); renderDocs();
+        await deleteAttachment(a.id); await renderDocs(); await refreshMeta();
       };
       el.appendChild(item);
     }
@@ -1007,24 +1333,145 @@
   });
   document.getElementById("attachBtn").addEventListener("click", () => document.getElementById("fileInput").click());
   document.getElementById("fileInput").addEventListener("change", async (e) => {
-    for (const file of e.target.files) await addAttachment(petId, file);
+    for (const file of e.target.files) await addAttachment(petId, file, { kind: "file" });
     e.target.value = "";
-    renderDocs();
+    await renderDocs();
+    await refreshMeta();
+  });
+
+  const photoDate = document.getElementById("photoDate");
+  const localToday = new Date();
+  localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
+  photoDate.value = localToday.toISOString().slice(0, 10);
+  const albumDialog = document.getElementById("albumDialog");
+  const photoDisplaySize = document.getElementById("photoDisplaySize");
+  const photoDisplaySizeValue = document.getElementById("photoDisplaySizeValue");
+  const photoTimeline = document.getElementById("photoTimeline");
+  const PHOTO_SIZE_KEY = "pet_album_photo_scale_v2";
+  const LEGACY_PHOTO_SIZE_KEY = "pet_album_photo_size";
+  const PHOTO_DISPLAY_SCALE = 0.7; // The previous 70% width is the new 100%.
+
+  function normalizePhotoDisplaySize(value) {
+    const size = Number(value);
+    if (!Number.isFinite(size)) return 43;
+    return Math.min(100, Math.max(30, Math.round(size)));
+  }
+
+  function applyPhotoDisplaySize(value, persist = false) {
+    const size = normalizePhotoDisplaySize(value);
+    photoDisplaySize.value = String(size);
+    photoDisplaySizeValue.textContent = `${size}%`;
+    photoDisplaySize.setAttribute("aria-valuetext", `${size}%`);
+    const layoutSize = Math.round(size * PHOTO_DISPLAY_SCALE * 10) / 10;
+    photoTimeline.style.setProperty("--album-photo-size", `${layoutSize}%`);
+    if (persist) {
+      try { localStorage.setItem(PHOTO_SIZE_KEY, String(size)); } catch { /* Keep the live setting. */ }
+    }
+  }
+
+  let savedPhotoSize = 43;
+  try {
+    const savedScale = localStorage.getItem(PHOTO_SIZE_KEY);
+    const legacySize = localStorage.getItem(LEGACY_PHOTO_SIZE_KEY);
+    if (savedScale !== null) savedPhotoSize = savedScale;
+    else if (legacySize !== null) savedPhotoSize = Number(legacySize) / PHOTO_DISPLAY_SCALE;
+  } catch { /* Use the default. */ }
+  applyPhotoDisplaySize(savedPhotoSize);
+  photoDisplaySize.addEventListener("input", event => applyPhotoDisplaySize(event.target.value, true));
+
+  function closeAlbumDialog() {
+    if (albumDialog.open) albumDialog.close();
+  }
+  document.getElementById("openAlbum").addEventListener("click", async () => {
+    albumDialog.showModal();
+    await renderAlbum();
+  });
+  document.getElementById("closeAlbum").addEventListener("click", closeAlbumDialog);
+  albumDialog.addEventListener("close", releaseTimelinePhotoUrls);
+  albumDialog.addEventListener("click", event => {
+    if (event.target === event.currentTarget) closeAlbumDialog();
+  });
+  document.getElementById("photoBtn").addEventListener("click", () => document.getElementById("photoInput").click());
+  document.getElementById("photoInput").addEventListener("change", async (event) => {
+    const caption = document.getElementById("photoCaption").value.trim();
+    for (const file of event.target.files) {
+      if (!String(file.type || "").startsWith("image/")) continue;
+      await addAttachment(petId, file, { kind: "photo", taken_at: photoDate.value || null, caption });
+    }
+    event.target.value = "";
+    document.getElementById("photoCaption").value = "";
+    await renderAlbum();
+    await refreshMeta();
+  });
+
+  document.getElementById("closePhotoDialog").addEventListener("click", closePhotoDialog);
+  document.getElementById("photoDialog").addEventListener("close", releaseActivePhotoUrl);
+  document.getElementById("photoDialog").addEventListener("click", event => {
+    if (event.target === event.currentTarget) closePhotoDialog();
+  });
+  document.getElementById("downloadPhoto").addEventListener("click", () => {
+    if (activePhoto) download(activePhoto.blob, activePhoto.name);
+  });
+  document.getElementById("deletePhoto").addEventListener("click", async () => {
+    if (!activePhoto || !confirm(t("confirm_del_photo"))) return;
+    const id = activePhoto.id;
+    closePhotoDialog();
+    await deleteAttachment(id);
+    await renderAlbum();
+    await refreshMeta();
+  });
+  window.addEventListener("beforeunload", () => {
+    releaseTimelinePhotoUrls();
+    releaseActivePhotoUrl();
   });
 
   // ── Log: the entries added from chat ────────────────────────────────
+  let allLogEntries = [];
+
   async function renderEntries() {
-    const entries = (await listEntries(petId)).slice().reverse(); // newest first
-    const n = entries.length;
+    allLogEntries = (await listEntries(petId)).slice().reverse(); // newest first
+    const n = allLogEntries.length;
     document.getElementById("logCount").textContent = n === 0
       ? t("nothing_logged", { name: pet.name })
       : nEvents(n);
     document.getElementById("run").disabled = n === 0;
     document.getElementById("dlLog").disabled = n === 0;
 
-    const el = document.getElementById("entrylist");
     if (!n) {
-      el.innerHTML = `<div class="empty">${t("no_entries")}<br />${t("no_entries_sub", { name: esc(pet.name) })}</div>`;
+      document.getElementById("clearLogFilters").hidden = true;
+      document.getElementById("logFilterSummary").textContent = "";
+      document.getElementById("entrylist").innerHTML =
+        `<div class="empty">${t("no_entries")}<br />${t("no_entries_sub", { name: esc(pet.name) })}</div>`;
+      return;
+    }
+    renderFilteredEntries();
+  }
+
+  function renderFilteredEntries() {
+    const query = document.getElementById("logSearch").value;
+    const filter = document.getElementById("logFilter").value;
+    const entries = PetLogFilter.filterEntries(allLogEntries, {
+      query,
+      filter,
+      searchText: entry => [
+        entry.behavior_type,
+        entry.trigger,
+        entry.timestamp,
+        entry.duration,
+        entry.intensity,
+        entry.recovery_period,
+        fmtDateTime(entry.logged_at),
+      ].filter(value => value !== null && value !== undefined).join(" "),
+    });
+    const filtering = Boolean(query.trim()) || filter !== "all";
+    document.getElementById("clearLogFilters").hidden = !filtering;
+    document.getElementById("logFilterSummary").textContent = filtering
+      ? t("log_results", { shown: entries.length, total: allLogEntries.length })
+      : "";
+
+    const el = document.getElementById("entrylist");
+    if (!entries.length) {
+      el.innerHTML = `<div class="empty filter-empty">${t("no_log_matches")}</div>`;
       return;
     }
     el.innerHTML = "";
@@ -1055,6 +1502,15 @@
       el.appendChild(item);
     }
   }
+
+  document.getElementById("logSearch").addEventListener("input", renderFilteredEntries);
+  document.getElementById("logFilter").addEventListener("change", renderFilteredEntries);
+  document.getElementById("clearLogFilters").addEventListener("click", () => {
+    document.getElementById("logSearch").value = "";
+    document.getElementById("logFilter").value = "all";
+    renderFilteredEntries();
+    document.getElementById("logSearch").focus();
+  });
 
   // Revise an entry by hand — the assistant only captures what the message
   // mentioned, so this is how the blanks get filled in (or mistakes corrected).
@@ -1154,6 +1610,7 @@
     await addDocument(petId, { kind: "report", title: `${t("doc_report")} — ${fmtDate(new Date().toISOString())}`, body: reportText });
     btn.textContent = t("saved_check");
     setTimeout(() => btn.textContent = t("save_to_docs"), 1500);
+    await renderDocs();
     await refreshMeta();
   });
   document.getElementById("dlReport").addEventListener("click", () =>
@@ -1204,11 +1661,17 @@
 
   // ── Boot ────────────────────────────────────────────────────────────
   async function refreshMeta() {
-    const [entries, docs] = await Promise.all([listEntries(petId), listDocuments(petId)]);
+    const [entries, docs, attachments] = await Promise.all([
+      listEntries(petId),
+      listDocuments(petId),
+      listAttachments(petId),
+    ]);
     const kind = [breedLabel(pet.species, pet.breed), speciesDisplay(pet.species)].filter(Boolean).join(" · ");
+    const photos = attachments.filter(isPhotoAttachment);
+    const archiveFiles = attachments.length - photos.length;
     document.getElementById("petmeta").textContent =
-      `${kind ? kind + " · " : ""}${entries.length} ${entries.length === 1 ? "entry" : "entries"} · ` +
-      `${docs.length} ${docs.length === 1 ? "document" : "documents"}`;
+      `${kind ? kind + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + archiveFiles)} · ${nPhotos(photos.length)}`;
+    document.getElementById("albumEntryCount").textContent = nPhotos(photos.length);
   }
 
   // Everything that reflects the pet's name/species, in one place so an edit
@@ -1225,7 +1688,7 @@
     if (!pet) { location.href = "/index.html"; return; }
     applyPet();
     await refreshMeta();
-    // The log and documents panels sit next to chat at all times on wide
+    // The log and archives panels sit next to chat at all times on wide
     // screens, so they need their content ready from the start.
     await renderEntries();
     await renderDocs();

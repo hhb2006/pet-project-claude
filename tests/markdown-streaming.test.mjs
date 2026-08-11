@@ -21,6 +21,10 @@ class FakeNode {
     this.replaceChildren(new FakeNode("#text", String(value)));
   }
 
+  appendData(value) {
+    this.nodeText += String(value);
+  }
+
   appendChild(child) {
     if (child.tagName === "#fragment") {
       while (child.firstChild) this.appendChild(child.firstChild);
@@ -103,4 +107,23 @@ test("blank lines inside an open code fence do not commit a partial block", () =
   assert.equal(target.childNodes[0].textContent, "const value = 1;\n\nstill code");
   assert.equal(target.childNodes[1], liveBlock);
   assert.equal(liveBlock.textContent, "After");
+});
+
+test("thinking appends to one text node and parses Markdown only when finished", () => {
+  const target = document.createElement("div");
+  const stream = window.createStreamingTextRenderer(target);
+  const textNode = target.firstChild;
+
+  for (let index = 0; index < 2000; index += 1) {
+    stream.append(index === 1999 ? "\n\nFinal **thought**." : "reasoning ");
+  }
+
+  assert.equal(target.childNodes.length, 1);
+  assert.equal(target.firstChild, textNode);
+  assert.equal(target.textContent.endsWith("Final **thought**."), true);
+
+  stream.finish();
+  assert.equal(target.childNodes.length, 2);
+  assert.equal(target.childNodes[1].tagName, "p");
+  assert.equal(target.childNodes[1].textContent, "Final thought.");
 });

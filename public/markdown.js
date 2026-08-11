@@ -192,6 +192,27 @@
     };
   }
 
+  // Thinking can be much longer than the final answer. Append it as one text
+  // node while it streams, then pay the Markdown parsing cost only once when
+  // the answer begins. This keeps long reasoning off the browser's hot path.
+  function createStreamingTextRenderer(target) {
+    const textNode = document.createTextNode("");
+    target.replaceChildren(textNode);
+    let source = "";
+
+    return {
+      append(delta) {
+        if (!delta) return;
+        source += delta;
+        textNode.appendData(delta);
+      },
+      finish() {
+        renderMarkdown(target, source);
+      },
+    };
+  }
+
   window.renderMarkdown = renderMarkdown;
   window.createStreamingMarkdownRenderer = createStreamingMarkdownRenderer;
+  window.createStreamingTextRenderer = createStreamingTextRenderer;
 })();

@@ -1,6 +1,6 @@
 // Local data layer. Everything lives in this browser, in IndexedDB — which
 // (unlike localStorage) can hold real files, so each pet can keep attachments
-// alongside its logs and documents. Nothing is uploaded anywhere.
+// alongside its logs and archives. Nothing is uploaded anywhere.
 //
 // Shape:
 //   pets        { id, name, species, breed, owner, created_at,
@@ -10,7 +10,8 @@
 //   entries     { id, pet_id, logged_at, behavior_type, trigger, timestamp,
 //                 duration, intensity, recovery_period, time_of_day, edited_at }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
-//   attachments { id, pet_id, name, type, size, blob, created_at }
+//   attachments { id, pet_id, name, type, size, blob, kind, taken_at,
+//                 caption, created_at }
 //   sessions    { id, pet_id, title, created_at, updated_at }
 //   messages    { id, session_id, pet_id, role, kind, content, thinking,
 //                 thought_seconds, parent_id, entry_id, created_at }
@@ -313,7 +314,7 @@ async function markMessageLogged(msgId, entryId) {
   return updateMessage(msgId, { entry_id: entryId });
 }
 
-// ── Documents (saved reports + your own notes) ───────────────────────────────
+// ── Archives (saved reports + your own notes) ────────────────────────────────
 async function listDocuments(petId) {
   const rows = await byIndex("documents", petId);
   return rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
@@ -326,20 +327,47 @@ async function addDocument(petId, { kind, title, body }) {
   await tx("documents", "readwrite", s => s.put(doc));
   return doc;
 }
+async function updateDocument(id, patch) {
+  const current = await tx("documents", "readonly", store => reqOf(store.get(id)));
+  if (!current) return null;
+  const next = {
+    ...current,
+    title: patch.title === undefined ? current.title : String(patch.title).trim(),
+    body: patch.body === undefined ? current.body : String(patch.body),
+    edited_at: new Date().toISOString(),
+  };
+  await tx("documents", "readwrite", store => store.put(next));
+  return next;
+}
 async function deleteDocument(id) { await tx("documents", "readwrite", s => s.delete(id)); }
 
-// ── Attachments (photos, vet paperwork — stored as real files) ───────────────
+// ── Attachments (album photos + paperwork — stored as real files) ────────────
 async function listAttachments(petId) {
   const rows = await byIndex("attachments", petId);
   return rows.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 }
-async function addAttachment(petId, file) {
+async function addAttachment(petId, file, options = {}) {
   const att = {
     id: uid(), pet_id: petId, name: file.name, type: file.type || "application/octet-stream",
     size: file.size, blob: file, created_at: new Date().toISOString(),
+    kind: options.kind || (String(file.type || "").startsWith("image/") ? "photo" : "file"),
+    taken_at: options.taken_at || null,
+    caption: String(options.caption || "").trim(),
   };
   await tx("attachments", "readwrite", s => s.put(att));
   return att;
+}
+async function updateAttachment(id, patch) {
+  const current = await tx("attachments", "readonly", store => reqOf(store.get(id)));
+  if (!current) return null;
+  const next = {
+    ...current,
+    name: patch.name === undefined ? current.name : String(patch.name).trim(),
+    caption: patch.caption === undefined ? current.caption : String(patch.caption).trim(),
+    edited_at: new Date().toISOString(),
+  };
+  await tx("attachments", "readwrite", store => store.put(next));
+  return next;
 }
 async function deleteAttachment(id) { await tx("attachments", "readwrite", s => s.delete(id)); }
 

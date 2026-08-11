@@ -10,12 +10,13 @@
 //   entries     { id, pet_id, logged_at, behavior_type, trigger, timestamp,
 //                 duration, intensity, recovery_period, time_of_day, edited_at }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
-//   attachments { id, pet_id, name, type, size, blob, kind, taken_at,
+//   attachments { id, pet_id, name, type, size, blob, kind, source_type,
+//                 source_id, entry_id, taken_at,
 //                 caption, ai_description, ai_analysis_status,
 //                 ai_analyzed_at, ai_analysis_model, created_at }
 //   sessions    { id, pet_id, title, created_at, updated_at }
 //   messages    { id, session_id, pet_id, role, kind, content, thinking,
-//                 thought_seconds, parent_id, entry_id, created_at }
+//                 thought_seconds, parent_id, entry_id, attachment_ids, created_at }
 
 const DB_NAME = "pet_journal";
 const DB_VERSION = 2;
@@ -207,9 +208,10 @@ async function updateEntry(id, fields) {
 // transaction. Released messages can then be added to the log again.
 async function deleteEntry(id) {
   return openDB().then(db => new Promise((resolve, reject) => {
-    const transaction = db.transaction(["entries", "messages"], "readwrite");
+    const transaction = db.transaction(["entries", "messages", "attachments"], "readwrite");
     const entries = transaction.objectStore("entries");
     const messages = transaction.objectStore("messages");
+    const attachments = transaction.objectStore("attachments");
     entries.delete(id);
 
     const cursorRequest = messages.openCursor();
@@ -218,6 +220,19 @@ async function deleteEntry(id) {
       if (!cursor) return;
       if (cursor.value.entry_id === id) {
         cursor.update({ ...cursor.value, entry_id: null });
+      }
+      cursor.continue();
+    };
+
+    const attachmentCursor = attachments.openCursor();
+    attachmentCursor.onsuccess = () => {
+      const cursor = attachmentCursor.result;
+      if (!cursor) return;
+      const attachment = cursor.value;
+      if (attachment.source_type === "log" && attachment.source_id === id) {
+        cursor.delete();
+      } else if (attachment.entry_id === id) {
+        cursor.update({ ...attachment, entry_id: null });
       }
       cursor.continue();
     };
@@ -247,7 +262,22 @@ async function touchSession(session, patch = {}) {
 }
 async function deleteSession(id) {
   const msgs = await byIndex("messages", id, "session_id");
+  const attachmentIds = new Set(msgs.flatMap(message =>
+    Array.isArray(message.attachment_ids) ? message.attachment_ids : []));
   await tx("messages", "readwrite", s => msgs.forEach(m => s.delete(m.id)));
+  for (const attachmentId of attachmentIds) {
+    const attachment = await tx("attachments", "readonly", store => reqOf(store.get(attachmentId)));
+    if (!attachment) continue;
+    if (attachment.entry_id) {
+      await updateAttachment(attachment.id, {
+        source_type: "log",
+        source_id: attachment.entry_id,
+        entry_id: null,
+      });
+    } else {
+      await deleteAttachment(attachment.id);
+    }
+  }
   await tx("sessions", "readwrite", s => s.delete(id));
 }
 
@@ -295,11 +325,14 @@ async function addMessage(
     thought_seconds = null,
     parent_id = null,
     entry_id = null,
+    attachment_ids = [],
   }
 ) {
   const msg = {
     id: uid(), session_id: sessionId, pet_id: petId, role, kind, content, thinking,
-    thought_seconds, parent_id, entry_id, created_at: new Date().toISOString(),
+    thought_seconds, parent_id, entry_id,
+    attachment_ids: Array.isArray(attachment_ids) ? attachment_ids.slice(0, 8) : [],
+    created_at: new Date().toISOString(),
   };
   await tx("messages", "readwrite", s => s.put(msg));
   return msg;
@@ -352,6 +385,9 @@ async function addAttachment(petId, file, options = {}) {
     id: uid(), pet_id: petId, name: file.name, type: file.type || "application/octet-stream",
     size: file.size, blob: file, created_at: new Date().toISOString(),
     kind: options.kind || (String(file.type || "").startsWith("image/") ? "photo" : "file"),
+    source_type: options.source_type || null,
+    source_id: options.source_id || null,
+    entry_id: options.entry_id || null,
     taken_at: options.taken_at || null,
     caption: String(options.caption || "").trim(),
     ai_description: options.ai_description || null,
@@ -377,6 +413,9 @@ async function updateAttachment(id, patch) {
       ? current.ai_analyzed_at : (patch.ai_analyzed_at || null),
     ai_analysis_model: patch.ai_analysis_model === undefined
       ? current.ai_analysis_model : (patch.ai_analysis_model || null),
+    source_type: patch.source_type === undefined ? current.source_type : (patch.source_type || null),
+    source_id: patch.source_id === undefined ? current.source_id : (patch.source_id || null),
+    entry_id: patch.entry_id === undefined ? current.entry_id : (patch.entry_id || null),
     edited_at: new Date().toISOString(),
   };
   await tx("attachments", "readwrite", store => store.put(next));

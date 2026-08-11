@@ -34,8 +34,9 @@ test("builds newest-first log and archive memory without binary photo data", () 
   assert.equal(memory.log_entries[1].intensity, null);
   assert.equal(memory.archive_documents[0].body, "Prefers wet food");
   assert.deepEqual(memory.archive_files.map(file => file.name), ["lab.pdf"]);
-  assert.equal(memory.album_photos[0].owner_caption, "At the park");
-  assert.equal(memory.album_photos[0].visual_note, "Standing on grass beside a red ball");
+  assert.equal(memory.image_notes[0].owner_caption, "At the park");
+  assert.equal(memory.image_notes[0].visual_note, "Standing on grass beside a red ball");
+  assert.equal(memory.image_notes[0].source, "album");
   assert.equal(JSON.stringify(memory).includes("secret"), false);
   assert.equal(JSON.stringify(memory).includes("hiddenBinary"), false);
   assert.equal(JSON.stringify(memory).includes("pet.jpg"), false);

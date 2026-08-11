@@ -1,5 +1,5 @@
 // Prepares a privacy-conscious, resized copy for one-shot server-side visual
-// analysis. The original album photo remains in IndexedDB and is not sent.
+// analysis. The original image remains in IndexedDB and is not sent.
 (function exposePhotoAnalysis(root) {
   async function prepare(file, { maxDimension = 1280, quality = 0.82 } = {}) {
     if (!file || !String(file.type || "").startsWith("image/")) {

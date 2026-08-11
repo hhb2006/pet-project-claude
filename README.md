@@ -158,7 +158,7 @@ Environment variables take precedence over the committed defaults. In Netlify,
 store `ANTHROPIC_API_KEY` as a secret environment variable; add the other two
 only when an environment needs an override. Never commit `.env`.
 
-Album vision uses an independent API key and model. The committed defaults in
+Image analysis uses an independent API key and model. The committed defaults in
 `netlify/lib/vision-defaults.json` use Anthropic's Messages API with
 `claude-haiku-4-5-20251001`. Add the private key locally and in Netlify:
 
@@ -178,10 +178,10 @@ VISION_MODEL=claude-haiku-4-5-20251001
 
 Records and original files are stored **privately in your own browser**, in
 IndexedDB. Chat sends the relevant bounded text context to its configured AI.
-When a new album photo is added, the browser removes metadata, scales it to at
-most 1280px and sends that JPEG copy once to the configured vision AI. The
-returned text note is stored locally; later chats receive the note, never the
-image pixels. An existing single-pet log from an earlier version is migrated
+When an image is added to chat, a log, archives, or the album, the browser removes
+metadata, scales it to at most 1280px and sends that JPEG copy once to the configured
+vision AI. The returned text note is stored locally; later chats receive the note,
+never the image pixels. An existing single-pet log from an earlier version is migrated
 automatically into a pet on first load.
 
 Because storage is per-browser, your pets do **not** sync across devices, and

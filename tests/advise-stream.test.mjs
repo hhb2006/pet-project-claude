@@ -138,7 +138,8 @@ test("adds bounded log and archive memory as untrusted pet context", async () =>
       ],
       archive_documents: [{ kind: "note", title: "Diet", body: longBody }],
       archive_files: [{ name: "lab.pdf", description: "blood test" }],
-      album_photos: [{
+      image_notes: [{
+        source: "chat",
         taken_at: "2026-08-01",
         owner_caption: "At the park",
         visual_note: "Standing on grass beside a red ball",

@@ -1,7 +1,7 @@
 "use strict";
 
-// One-shot album photo interpretation. A resized copy is sent to a dedicated
-// vision model only when the browser uploads a new album photo. The returned
+// One-shot pet image interpretation. A resized copy is sent to a dedicated
+// vision model only when the browser uploads a new image. The returned
 // text is stored by the browser; this function does not retain the image.
 
 const { getVisionConfig } = require("../lib/vision-config");

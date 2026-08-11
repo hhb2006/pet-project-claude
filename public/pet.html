@@ -72,7 +72,17 @@
       </div>
       <div class="chat">
         <div class="log" id="chatlog"></div>
+        <div class="composer-image-preview" id="chatImagePreview" aria-live="polite" hidden></div>
         <form class="composer" id="composer">
+          <button type="button" class="ghost composer-image-button" id="chatImageBtn"
+                  data-i18n-title="attach_images" data-i18n-aria-label="attach_images">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="3" />
+              <circle cx="8.5" cy="9" r="1.5" />
+              <path d="m5 17 4.5-4.5 3.2 3.2 2.1-2.1L19 17" />
+            </svg>
+          </button>
+          <input type="file" id="chatImageInput" accept="image/*" multiple hidden />
           <textarea id="input" rows="1" autofocus></textarea>
           <button type="button" class="ghost voice-input" id="voiceInput" hidden
                   aria-pressed="false" data-i18n-title="voice_start"
@@ -87,6 +97,7 @@
           </button>
           <button type="submit" id="send" data-i18n="send"></button>
         </form>
+        <p class="voice-status" id="chatImageStatus" role="status" aria-live="polite" hidden></p>
         <p class="voice-status" id="voiceStatus" role="status" aria-live="polite" hidden></p>
         <p class="choicehint" id="choicehint"></p>
       </div>
@@ -157,6 +168,7 @@
             <input type="file" id="fileInput" style="display:none" multiple />
           </div>
           <p class="hint" data-i18n="attach_hint"></p>
+          <p class="archive-upload-status" id="archiveUploadStatus" role="status" aria-live="polite" hidden></p>
           </div>
           <div class="doclist" id="doclist"></div>
         </section>
@@ -359,6 +371,119 @@
   let messageRows = [];
   let activePath = [];
   let activeGeneration = null;
+  let attachmentRows = [];
+  let attachmentById = new Map();
+  let chatObjectUrls = [];
+  let pendingChatImages = [];
+
+  async function refreshAttachmentCache() {
+    attachmentRows = await listAttachments(petId);
+    attachmentById = new Map(attachmentRows.map(attachment => [attachment.id, attachment]));
+    return attachmentRows;
+  }
+
+  function releaseObjectUrls(urls) {
+    for (const url of urls) URL.revokeObjectURL(url);
+    urls.length = 0;
+  }
+
+  function attachmentsForMessage(message) {
+    return (Array.isArray(message.attachment_ids) ? message.attachment_ids : [])
+      .map(id => attachmentById.get(id))
+      .filter(Boolean);
+  }
+
+  function imageNoteForPrompt(attachment) {
+    if (attachment.ai_description) return attachment.ai_description;
+    if (attachment.ai_analysis_status === "failed") {
+      return "[Visual analysis was unavailable. Do not claim to have seen this image.]";
+    }
+    return "[The image has no completed visual note. Do not infer its contents.]";
+  }
+
+  function messageContentForAI(message) {
+    const images = attachmentsForMessage(message);
+    if (!images.length) return message.content;
+    const notes = images.map((attachment, index) =>
+      `Attached image ${index + 1} (${attachment.name}): ${imageNoteForPrompt(attachment)}`);
+    return `${message.content}\n\n<attached_image_notes>\n${notes.join("\n")}\n</attached_image_notes>`;
+  }
+
+  async function createAnalyzedImageAttachment(file, options = {}, onUpdate = () => {}) {
+    let attachment = await addAttachment(petId, file, {
+      ...options,
+      kind: options.kind || "image",
+      ai_analysis_status: "pending",
+    });
+    await onUpdate(attachment);
+    try {
+      const image = await PhotoAnalysis.prepare(file);
+      const response = await fetch("/.netlify/functions/analyze-photo", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          image,
+          pet: petContext(),
+          caption: options.analysis_caption || options.caption || "",
+          taken_at: options.taken_at || null,
+          lang: langNow(),
+        }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.description) throw new Error(result.code || "vision_failed");
+      attachment = await updateAttachment(attachment.id, {
+        ai_description: result.description,
+        ai_analysis_status: "complete",
+        ai_analyzed_at: result.analyzed_at,
+        ai_analysis_model: result.model,
+      });
+    } catch (error) {
+      console.warn("Image analysis failed", { code: String(error && error.message || "vision_failed") });
+      attachment = await updateAttachment(attachment.id, { ai_analysis_status: "failed" });
+    }
+    await onUpdate(attachment);
+    return attachment;
+  }
+
+  function renderLinkedImages(container, attachments, urlBucket) {
+    if (!attachments.length) return;
+    const grid = document.createElement("div");
+    grid.className = "linked-image-grid";
+    grid.setAttribute("aria-label", t("attached_images"));
+    for (const attachment of attachments) {
+      const card = document.createElement("article");
+      card.className = "linked-image-card";
+      const image = document.createElement("img");
+      const url = URL.createObjectURL(attachment.blob);
+      urlBucket.push(url);
+      image.src = url;
+      image.loading = "lazy";
+      image.alt = attachment.caption || attachment.name;
+      const copy = document.createElement("div");
+      copy.className = "linked-image-copy";
+      const name = document.createElement("strong");
+      name.textContent = attachment.caption || attachment.name;
+      copy.appendChild(name);
+      if (attachment.ai_description) {
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = t("photo_ai_note");
+        const note = document.createElement("p");
+        note.textContent = attachment.ai_description;
+        details.append(summary, note);
+        copy.appendChild(details);
+      } else if (attachment.ai_analysis_status) {
+        const status = document.createElement("span");
+        status.className = `linked-image-status ${attachment.ai_analysis_status}`;
+        status.textContent = t(attachment.ai_analysis_status === "pending"
+          ? "photo_ai_pending" : "photo_ai_failed");
+        copy.appendChild(status);
+      }
+      card.append(image, copy);
+      grid.appendChild(card);
+    }
+    container.appendChild(grid);
+  }
 
   async function refreshSessions(selectId) {
     const sessions = await listSessions(petId);
@@ -384,12 +509,14 @@
     session = tree.session;
     messageRows = tree.messages;
     activePath = pathToLeaf(session.active_leaf_id);
+    await refreshAttachmentCache();
     sessionSel.value = id;
     renderActiveChat();
     setHint();
   }
 
   function renderActiveChat() {
+    releaseObjectUrls(chatObjectUrls);
     chatlog.innerHTML = "";
     if (!activePath.length) greet();
     for (const message of activePath) renderStored(message);
@@ -542,6 +669,7 @@
     d.className = "msg user";
     d.textContent = m.content;
     wrap.appendChild(d);
+    renderLinkedImages(wrap, attachmentsForMessage(m), chatObjectUrls);
 
     const act = document.createElement("div");
     act.className = "msgactions user-actions";
@@ -644,6 +772,7 @@
       if (!content || activeGeneration) return;
       const edited = await say("user", "advice", content, {
         parent_id: message.parent_id,
+        attachment_ids: message.attachment_ids || [],
         render: false,
       });
       activePath = pathToLeaf(edited.id);
@@ -689,6 +818,7 @@
       kind,
       content,
       entry_id: options.entry_id || null,
+      attachment_ids: options.attachment_ids || [],
       thinking: options.thinking || null,
       thought_seconds: options.thought_seconds ?? null,
       parent_id: parentId,
@@ -701,12 +831,56 @@
   }
 
   // ── Sending ─────────────────────────────────────────────────────────
+  const chatImageInput = document.getElementById("chatImageInput");
+  const chatImagePreview = document.getElementById("chatImagePreview");
+  const chatImageStatus = document.getElementById("chatImageStatus");
+
+  function renderPendingChatImages() {
+    chatImagePreview.innerHTML = "";
+    chatImagePreview.hidden = pendingChatImages.length === 0;
+    pendingChatImages.forEach((pending, index) => {
+      const item = document.createElement("div");
+      item.className = "pending-chat-image";
+      const image = document.createElement("img");
+      image.src = pending.url;
+      image.alt = pending.file.name;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "×";
+      remove.setAttribute("aria-label", t("remove_image", { name: pending.file.name }));
+      remove.onclick = () => {
+        URL.revokeObjectURL(pending.url);
+        pendingChatImages.splice(index, 1);
+        renderPendingChatImages();
+      };
+      item.append(image, remove);
+      chatImagePreview.appendChild(item);
+    });
+  }
+
+  document.getElementById("chatImageBtn").addEventListener("click", () => chatImageInput.click());
+  chatImageInput.addEventListener("change", event => {
+    const images = Array.from(event.target.files).filter(file =>
+      String(file.type || "").startsWith("image/"));
+    event.target.value = "";
+    const available = Math.max(0, 4 - pendingChatImages.length);
+    for (const file of images.slice(0, available)) {
+      pendingChatImages.push({ file, url: URL.createObjectURL(file) });
+    }
+    chatImageStatus.hidden = images.length <= available;
+    chatImageStatus.textContent = images.length > available ? t("chat_image_limit") : "";
+    renderPendingChatImages();
+  });
+
   document.getElementById("composer").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const text = input.value.trim();
+    const selectedImages = pendingChatImages.slice();
+    const text = input.value.trim() || (selectedImages.length ? t("image_only_message") : "");
     if (!text || sendBtn.disabled) return;
     voiceInput.abort();
     input.value = ""; input.style.height = "auto";
+    pendingChatImages = [];
+    renderPendingChatImages();
 
     if (!session) await newSession();
     if (!messageRows.length) {
@@ -716,7 +890,43 @@
       session = await touchSession(session);
     }
 
-    const userMessage = await say("user", "advice", text);
+    const userMessage = await say("user", "advice", text, { render: false });
+    const attachmentIds = [];
+    if (selectedImages.length) {
+      busy(true);
+      chatImageStatus.hidden = false;
+      chatImageStatus.classList.remove("error");
+      let saved = 0;
+      let analyzed = 0;
+      for (let index = 0; index < selectedImages.length; index += 1) {
+        chatImageStatus.textContent = t("image_upload_progress", {
+          n: index + 1, total: selectedImages.length,
+        });
+        try {
+          const attachment = await createAnalyzedImageAttachment(selectedImages[index].file, {
+            kind: "image", source_type: "chat", source_id: userMessage.id,
+            analysis_caption: text,
+          });
+          attachmentIds.push(attachment.id);
+          saved += 1;
+          if (attachment.ai_description) analyzed += 1;
+          userMessage.attachment_ids = attachmentIds.slice();
+          await updateMessage(userMessage.id, { attachment_ids: attachmentIds.slice() });
+        } catch (error) {
+          console.error("Could not save chat image", error);
+        } finally {
+          URL.revokeObjectURL(selectedImages[index].url);
+        }
+      }
+      await refreshAttachmentCache();
+      chatImageStatus.textContent = t("image_upload_result", {
+        saved, analyzed, total: selectedImages.length,
+      });
+      chatImageStatus.classList.toggle("error", saved < selectedImages.length || analyzed < saved);
+      busy(false);
+    }
+    activePath = pathToLeaf(userMessage.id);
+    renderActiveChat();
     await runAdvice(userMessage);
   });
 
@@ -750,7 +960,7 @@
     try {
       const history = activePath
         .filter(m => m.kind === "advice")
-        .map(m => ({ role: m.role, content: m.content }));
+        .map(m => ({ role: m.role, content: messageContentForAI(m) }));
       const memory = await petMemoryContext();
       const res = await fetchAdviceStream({
         messages: history,
@@ -1006,7 +1216,7 @@
       const targetIndex = thread.findIndex(message => message.id === m.id);
       const context = (targetIndex >= 0 ? thread.slice(0, targetIndex + 1) : [m])
         .slice(-12)
-        .map(message => ({ role: message.role, content: message.content }));
+        .map(message => ({ role: message.role, content: messageContentForAI(message) }));
       const res = await fetch("/.netlify/functions/chat", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: context }),
@@ -1085,6 +1295,10 @@
     try {
       const entry = await saveEntryForMessage(petId, draft.message.id, fields);
       if (!entry) throw new Error("No log entry was saved.");
+      for (const attachmentId of (draft.message.attachment_ids || [])) {
+        await updateAttachment(attachmentId, { entry_id: entry.id });
+      }
+      await refreshAttachmentCache();
       draft.message.entry_id = entry.id;
       loggedButton(draft.action, draft.message);
       closeLogDialog();
@@ -1116,6 +1330,8 @@
 
   // ── Archives + standalone pet album ─────────────────────────────────
   let photoObjectUrls = [];
+  let archiveObjectUrls = [];
+  let logObjectUrls = [];
   let activePhoto = null;
   let activePhotoUrl = null;
 
@@ -1322,8 +1538,11 @@
   });
 
   async function renderDocs() {
+    releaseObjectUrls(archiveObjectUrls);
     const [docs, atts] = await Promise.all([listDocuments(petId), listAttachments(petId)]);
-    const files = atts.filter(attachment => !isPhotoAttachment(attachment));
+    const files = atts.filter(attachment => !isPhotoAttachment(attachment) &&
+      (attachment.source_type === "archive" ||
+       (attachment.kind === "file" && !attachment.source_type)));
     const el = document.getElementById("doclist");
     if (!docs.length && !files.length) {
       el.innerHTML = `<div class="empty">${t("no_docs")}<br />${t("no_docs_sub")}</div>`;
@@ -1354,8 +1573,9 @@
     for (const a of files) {
       const item = document.createElement("div");
       item.className = "docitem";
+      const isImage = String(a.type || "").startsWith("image/");
       item.innerHTML = `
-        <h4>📎 ${esc(a.name)}</h4>
+        <h4>${isImage ? "🖼️" : "📎"} ${esc(a.name)}</h4>
         <div class="meta">${esc(a.type)} · ${fileSize(a.size)} · ${fmtDate(a.created_at)}${a.edited_at ? " · " + t("edited") : ""}</div>
         ${a.caption ? `<div class="body">${esc(a.caption)}</div>` : ""}
         <div class="actions">
@@ -1363,6 +1583,11 @@
           <button class="ghost dl">${t("download")}</button>
           <button class="ghost del">${t("delete")}</button>
         </div>`;
+      if (isImage) {
+        const visual = document.createElement("div");
+        renderLinkedImages(visual, [a], archiveObjectUrls);
+        item.insertBefore(visual, item.querySelector(".actions"));
+      }
       item.querySelector(".edit").onclick = () => openArchiveEditor("attachment", a);
       item.querySelector(".dl").onclick = () => download(a.blob, a.name);
       item.querySelector(".del").onclick = async () => {
@@ -1384,8 +1609,33 @@
   });
   document.getElementById("attachBtn").addEventListener("click", () => document.getElementById("fileInput").click());
   document.getElementById("fileInput").addEventListener("change", async (e) => {
-    for (const file of e.target.files) await addAttachment(petId, file, { kind: "file" });
+    const files = Array.from(e.target.files);
     e.target.value = "";
+    if (!files.length) return;
+    const status = document.getElementById("archiveUploadStatus");
+    const button = document.getElementById("attachBtn");
+    status.hidden = false;
+    button.disabled = true;
+    let saved = 0;
+    let analyzed = 0;
+    for (let index = 0; index < files.length; index += 1) {
+      const file = files[index];
+      status.textContent = t("archive_upload_progress", { n: index + 1, total: files.length });
+      try {
+        const attachment = String(file.type || "").startsWith("image/")
+          ? await createAnalyzedImageAttachment(file, { kind: "image", source_type: "archive" })
+          : await addAttachment(petId, file, { kind: "file", source_type: "archive" });
+        saved += 1;
+        if (attachment.ai_description) analyzed += 1;
+      } catch (error) {
+        console.error("Could not save archive item", error);
+      }
+    }
+    button.disabled = false;
+    status.classList.toggle("error", saved < files.length ||
+      files.some(file => String(file.type || "").startsWith("image/")) && analyzed === 0);
+    status.textContent = t("archive_upload_result", { saved, analyzed, total: files.length });
+    await refreshAttachmentCache();
     await renderDocs();
     await refreshMeta();
   });
@@ -1460,45 +1710,20 @@
         const file = files[index];
         uploadStatus.classList.remove("error");
         uploadStatus.textContent = t("photo_upload_progress", { n: index + 1, total: files.length });
-        let attachment;
         try {
-          attachment = await addAttachment(petId, file, {
+          const attachment = await createAnalyzedImageAttachment(file, {
             kind: "photo",
+            source_type: "album",
             taken_at: photoDate.value || null,
             caption,
-            ai_analysis_status: "pending",
+          }, async () => {
+            await renderAlbum();
           });
           saved += 1;
+          if (attachment.ai_description) analyzed += 1;
         } catch (error) {
           console.error("Could not save album photo", error);
           continue;
-        }
-        await renderAlbum();
-        try {
-          const image = await PhotoAnalysis.prepare(file);
-          const response = await fetch("/.netlify/functions/analyze-photo", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              image,
-              pet: petContext(),
-              caption,
-              taken_at: photoDate.value || null,
-              lang: langNow(),
-            }),
-          });
-          const result = await response.json().catch(() => ({}));
-          if (!response.ok || !result.description) throw new Error(result.code || "vision_failed");
-          await updateAttachment(attachment.id, {
-            ai_description: result.description,
-            ai_analysis_status: "complete",
-            ai_analyzed_at: result.analyzed_at,
-            ai_analysis_model: result.model,
-          });
-          analyzed += 1;
-        } catch (error) {
-          console.warn("Photo analysis failed", { code: String(error && error.message || "vision_failed") });
-          await updateAttachment(attachment.id, { ai_analysis_status: "failed" });
         }
         await renderAlbum();
       }
@@ -1533,13 +1758,57 @@
   window.addEventListener("beforeunload", () => {
     releaseTimelinePhotoUrls();
     releaseActivePhotoUrl();
+    releaseObjectUrls(chatObjectUrls);
+    releaseObjectUrls(archiveObjectUrls);
+    releaseObjectUrls(logObjectUrls);
+    for (const pending of pendingChatImages) URL.revokeObjectURL(pending.url);
   });
 
   // ── Log: the entries added from chat ────────────────────────────────
   let allLogEntries = [];
+  let allLogAttachments = [];
+
+  function attachmentsForEntry(entryId) {
+    return allLogAttachments.filter(attachment =>
+      (attachment.source_type === "log" && attachment.source_id === entryId) ||
+      attachment.entry_id === entryId);
+  }
+
+  async function addImagesToEntry(entry, button) {
+    const picker = document.createElement("input");
+    picker.type = "file";
+    picker.accept = "image/*";
+    picker.multiple = true;
+    picker.onchange = async () => {
+      const files = Array.from(picker.files || []).filter(file =>
+        String(file.type || "").startsWith("image/"));
+      button.disabled = true;
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        button.textContent = t("image_upload_progress", { n: index + 1, total: files.length });
+        try {
+          await createAnalyzedImageAttachment(file, {
+            kind: "image", source_type: "log", source_id: entry.id,
+          });
+        } catch (error) {
+          console.error("Could not save log image", error);
+        }
+      }
+      button.textContent = t("add_log_images");
+      button.disabled = false;
+      await renderEntries();
+      await refreshAttachmentCache();
+      await refreshMeta();
+    };
+    picker.click();
+  }
 
   async function renderEntries() {
-    allLogEntries = (await listEntries(petId)).slice().reverse(); // newest first
+    const [entries, attachments] = await Promise.all([listEntries(petId), listAttachments(petId)]);
+    allLogEntries = entries.slice().reverse(); // newest first
+    allLogAttachments = attachments.filter(attachment =>
+      attachment.kind === "image" &&
+      (attachment.source_type === "log" || Boolean(attachment.entry_id)));
     const n = allLogEntries.length;
     document.getElementById("logCount").textContent = n === 0
       ? t("nothing_logged", { name: pet.name })
@@ -1558,6 +1827,7 @@
   }
 
   function renderFilteredEntries() {
+    releaseObjectUrls(logObjectUrls);
     const query = document.getElementById("logSearch").value;
     const filter = document.getElementById("logFilter").value;
     const entries = PetLogFilter.filterEntries(allLogEntries, {
@@ -1570,6 +1840,7 @@
         entry.duration,
         entry.intensity,
         entry.recovery_period,
+        ...attachmentsForEntry(entry.id).map(attachment => attachment.ai_description),
         fmtDateTime(entry.logged_at),
       ].filter(value => value !== null && value !== undefined).join(" "),
     });
@@ -1599,9 +1870,14 @@
         </dl>
         <div class="actions">
           <button class="ghost edit">${t("edit")}</button>
+          <button class="ghost add-images">${t("add_log_images")}</button>
           <button class="ghost del">${t("delete")}</button>
         </div>`;
+      const visuals = document.createElement("div");
+      renderLinkedImages(visuals, attachmentsForEntry(e.id), logObjectUrls);
+      item.insertBefore(visuals, item.querySelector(".actions"));
       item.querySelector(".edit").onclick = () => editEntry(item, e);
+      item.querySelector(".add-images").onclick = event => addImagesToEntry(e, event.currentTarget);
       item.querySelector(".del").onclick = async () => {
         if (!confirm(t("confirm_del_entry"))) return;
         await deleteEntry(e.id);
@@ -1665,7 +1941,16 @@
 
   document.getElementById("dlLog").addEventListener("click", async () => {
     const entries = await listEntries(petId);
-    download(JSON.stringify(entries, null, 2),
+    const attachments = await listAttachments(petId);
+    const records = entries.map(entry => ({
+      ...entry,
+      image_notes: attachments
+        .filter(attachment => attachment.ai_description &&
+          ((attachment.source_type === "log" && attachment.source_id === entry.id) ||
+           attachment.entry_id === entry.id))
+        .map(attachment => attachment.ai_description),
+    }));
+    download(JSON.stringify(records, null, 2),
       `${pet.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_log.json`, "application/json");
   });
 
@@ -1688,7 +1973,15 @@
     const out = document.getElementById("analyzeOut");
     const rep = document.getElementById("report");
     try {
-      const records = await listEntries(petId);
+      const [entries, attachments] = await Promise.all([listEntries(petId), listAttachments(petId)]);
+      const records = entries.map(entry => ({
+        ...entry,
+        image_notes: attachments
+          .filter(attachment => attachment.ai_description &&
+            ((attachment.source_type === "log" && attachment.source_id === entry.id) ||
+             attachment.entry_id === entry.id))
+          .map(attachment => attachment.ai_description),
+      }));
       const res = await fetch("/.netlify/functions/analyze", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ records, pet: petContext(), lang: langNow() }),
@@ -1778,9 +2071,11 @@
     ]);
     const kind = [breedLabel(pet.species, pet.breed), speciesDisplay(pet.species)].filter(Boolean).join(" · ");
     const photos = attachments.filter(isPhotoAttachment);
-    const archiveFiles = attachments.length - photos.length;
+    const archiveFiles = attachments.filter(attachment => !isPhotoAttachment(attachment) &&
+      (attachment.source_type === "archive" ||
+       (attachment.kind === "file" && !attachment.source_type)));
     document.getElementById("petmeta").textContent =
-      `${kind ? kind + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + archiveFiles)} · ${nPhotos(photos.length)}`;
+      `${kind ? kind + " · " : ""}${nEntries(entries.length)} · ${nArchives(docs.length + archiveFiles.length)} · ${nPhotos(photos.length)}`;
     document.getElementById("albumEntryCount").textContent = nPhotos(photos.length);
   }
 

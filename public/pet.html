@@ -24,6 +24,9 @@
             <path d="m5 17 4.2-4.2a1.2 1.2 0 0 1 1.7 0l1.6 1.6 1.1-1.1a1.2 1.2 0 0 1 1.7 0L19 17M15.5 9h.01" />
           </svg>
           <span data-i18n="pet_album"></span>
+          <span class="album-entry-plus" aria-hidden="true">
+            <svg viewBox="0 0 20 20"><path d="M10 5v10M5 10h10" /></svg>
+          </span>
           <small id="albumEntryCount"></small>
         </button>
       </div>
@@ -218,6 +221,14 @@
       </label>
       <button type="button" id="photoBtn" data-i18n="add_photos"></button>
       <input type="file" id="photoInput" accept="image/*" multiple hidden />
+    </div>
+    <div class="album-view-controls">
+      <label for="photoDisplaySize">
+        <span data-i18n="photo_display_size"></span>
+        <output id="photoDisplaySizeValue" for="photoDisplaySize">30%</output>
+      </label>
+      <input type="range" id="photoDisplaySize" min="30" max="100" step="10" value="30" />
+      <div class="album-size-scale" aria-hidden="true"><span>30%</span><span>100%</span></div>
     </div>
     <div class="photo-timeline" id="photoTimeline" aria-live="polite"></div>
   </div>
@@ -1093,15 +1104,21 @@
     }
     timeline.innerHTML = "";
     let currentDate = null;
+    let currentPhotoGrid = null;
     for (const photo of photos) {
       const rawDate = albumDateValue(photo);
       const dateKey = String(rawDate || "").slice(0, 10);
       if (dateKey !== currentDate) {
         currentDate = dateKey;
+        const group = document.createElement("div");
+        group.className = "timeline-group";
         const marker = document.createElement("div");
         marker.className = "timeline-date";
         marker.innerHTML = `<span aria-hidden="true"></span><time datetime="${esc(dateKey)}">${esc(albumDateLabel(rawDate))}</time>`;
-        timeline.appendChild(marker);
+        currentPhotoGrid = document.createElement("div");
+        currentPhotoGrid.className = "timeline-photo-grid";
+        group.append(marker, currentPhotoGrid);
+        timeline.appendChild(group);
       }
 
       const card = document.createElement("article");
@@ -1114,6 +1131,8 @@
       const objectUrl = URL.createObjectURL(photo.blob);
       photoObjectUrls.push(objectUrl);
       image.src = objectUrl;
+      image.loading = "lazy";
+      image.decoding = "async";
       image.alt = photo.caption || t("photo_alt", { name: pet.name });
       preview.appendChild(image);
       preview.onclick = () => openPhotoDialog(photo);
@@ -1141,7 +1160,7 @@
       };
       actions.append(dl, del);
       card.append(preview, copy, actions);
-      timeline.appendChild(card);
+      currentPhotoGrid.appendChild(card);
     }
   }
 
@@ -1222,6 +1241,33 @@
   localToday.setMinutes(localToday.getMinutes() - localToday.getTimezoneOffset());
   photoDate.value = localToday.toISOString().slice(0, 10);
   const albumDialog = document.getElementById("albumDialog");
+  const photoDisplaySize = document.getElementById("photoDisplaySize");
+  const photoDisplaySizeValue = document.getElementById("photoDisplaySizeValue");
+  const photoTimeline = document.getElementById("photoTimeline");
+  const PHOTO_SIZE_KEY = "pet_album_photo_size";
+
+  function normalizePhotoDisplaySize(value) {
+    const size = Number(value);
+    if (!Number.isFinite(size)) return 30;
+    return Math.min(100, Math.max(30, Math.round(size / 10) * 10));
+  }
+
+  function applyPhotoDisplaySize(value, persist = false) {
+    const size = normalizePhotoDisplaySize(value);
+    photoDisplaySize.value = String(size);
+    photoDisplaySizeValue.textContent = `${size}%`;
+    photoDisplaySize.setAttribute("aria-valuetext", `${size}%`);
+    photoTimeline.style.setProperty("--album-photo-size", `${size}%`);
+    if (persist) {
+      try { localStorage.setItem(PHOTO_SIZE_KEY, String(size)); } catch { /* Keep the live setting. */ }
+    }
+  }
+
+  let savedPhotoSize = 30;
+  try { savedPhotoSize = localStorage.getItem(PHOTO_SIZE_KEY) || 30; } catch { /* Use the default. */ }
+  applyPhotoDisplaySize(savedPhotoSize);
+  photoDisplaySize.addEventListener("input", event => applyPhotoDisplaySize(event.target.value, true));
+
   function closeAlbumDialog() {
     if (albumDialog.open) albumDialog.close();
   }

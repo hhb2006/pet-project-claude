@@ -163,6 +163,18 @@ header.pet-header {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+.album-entry-plus {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  margin-left: 1px;
+  color: var(--ink);
+  background: var(--pink);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--pink-soft);
+}
+.album-entry .album-entry-plus svg { width: 13px; height: 13px; stroke: currentColor; stroke-width: 2.4; }
 .album-entry small { color: var(--muted); font-size: 0.72rem; font-weight: 650; }
 .pet-header-avatar {
   flex: 0 0 auto; width: 64px; height: 64px; border-radius: 50%;
@@ -655,6 +667,33 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   padding-top: 16px;
 }
 .album-dialog .album-form button { width: auto; }
+.album-view-controls {
+  margin: 0 20px 8px;
+  padding: 11px 13px 10px;
+  background: color-mix(in srgb, var(--pink-soft) 48%, var(--card));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.album-view-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+.album-view-controls output { color: var(--ink); font-variant-numeric: tabular-nums; }
+.album-view-controls input[type="range"] {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  margin: 2px 0 -7px;
+  padding: 0;
+  accent-color: var(--accent-strong);
+  cursor: pointer;
+}
+.album-size-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 0.68rem; }
 .album-dialog .photo-timeline { padding-right: 20px; padding-bottom: 24px; padding-left: 42px; }
 .album-dialog .photo-timeline::before { left: 25px; }
 .album-dialog .timeline-date > span { left: -21px; }
@@ -692,10 +731,20 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   border-radius: 50%;
   box-shadow: 0 0 0 3px var(--accent-2-soft);
 }
+.timeline-group + .timeline-group { margin-top: 14px; }
+.timeline-photo-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+}
 .album-photo {
   position: relative;
+  flex: 0 0 var(--album-photo-size, 30%);
+  width: var(--album-photo-size, 30%);
+  max-width: 100%;
   overflow: hidden;
-  margin: 0 0 11px;
+  margin: 0;
   background: color-mix(in srgb, var(--accent-2-soft) 42%, var(--card));
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -784,6 +833,7 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   .album-dialog-head { padding: 16px; }
   .album-dialog .album-form { grid-template-columns: 1fr; padding: 14px 16px 17px; }
   .album-dialog .album-form button { width: 100%; }
+  .album-view-controls { margin-inline: 16px; }
   .album-dialog .photo-timeline { padding-right: 14px; padding-left: 31px; }
   .album-dialog .photo-timeline::before { left: 19px; }
   .album-dialog .timeline-date > span { left: -18px; }

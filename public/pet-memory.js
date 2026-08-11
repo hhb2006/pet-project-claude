@@ -1,5 +1,6 @@
 // Builds a compact, serializable snapshot of locally stored pet records for
-// chat personalization. Blobs and photo data are intentionally never copied.
+// chat personalization. Blobs and image pixels are intentionally never copied;
+// only the vision model's bounded text note can become album memory.
 (function exposePetMemory(root) {
   function build({ entries = [], documents = [], attachments = [] } = {}) {
     const logEntries = newest(entries, "logged_at").slice(0, 24).map(entry => ({
@@ -31,10 +32,21 @@
         edited_at: text(attachment.edited_at, 40),
       }));
 
+    const albumPhotos = newest(attachments, "created_at")
+      .filter(attachment => isPhoto(attachment) && attachment.ai_description)
+      .slice(0, 16)
+      .map(attachment => ({
+        taken_at: text(attachment.taken_at || attachment.created_at, 40),
+        owner_caption: text(attachment.caption, 400),
+        visual_note: text(attachment.ai_description, 1200),
+        analyzed_at: text(attachment.ai_analyzed_at, 40),
+      }));
+
     return {
       log_entries: fitToBudget(logEntries, 6500),
       archive_documents: fitToBudget(archiveDocuments, 7500),
       archive_files: fitToBudget(archiveFiles, 1800),
+      album_photos: fitToBudget(albumPhotos, 7500),
     };
   }
 

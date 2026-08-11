@@ -702,6 +702,17 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   padding-top: 16px;
 }
 .album-dialog .album-form button { width: auto; }
+.photo-upload-status {
+  margin: -5px 20px 12px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--card));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.photo-upload-status.error { color: #9f3f2e; border-color: color-mix(in srgb, #b4462f 38%, var(--line)); }
 .album-view-controls {
   margin: 0 20px 8px;
   padding: 11px 13px 10px;
@@ -807,6 +818,12 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .album-photo-copy { display: grid; gap: 3px; padding: 10px 11px 4px; }
 .album-photo-copy strong { font-size: 0.88rem; line-height: 1.35; overflow-wrap: anywhere; }
 .album-photo-copy span { color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.album-ai-note { margin-top: 5px; font-size: 0.75rem; }
+.album-ai-note summary { color: var(--accent-strong); font-weight: 750; cursor: pointer; }
+.album-ai-note p { margin: 6px 0 2px; color: var(--muted); line-height: 1.5; }
+.album-ai-status { margin-top: 5px; line-height: 1.4; }
+.album-ai-status.pending { color: var(--accent-strong); }
+.album-ai-status.failed { color: #9f3f2e; }
 .album-photo-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 10px 10px; }
 .album-photo-actions button { min-height: 44px; padding: 7px 10px; font-size: 0.76rem; }
 .album-empty {
@@ -848,6 +865,19 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .photo-dialog-copy h2 { margin: 0; font-size: 1.15rem; overflow-wrap: anywhere; }
 .photo-dialog-copy p { margin: 5px 0 0; color: var(--muted); font-size: 0.82rem; }
 .photo-dialog-copy .dialog-actions { margin-top: 14px; }
+.photo-ai-dialog {
+  margin-top: 12px;
+  padding: 11px 13px;
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--card));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.photo-ai-dialog strong { font-size: 0.78rem; color: var(--accent-strong); }
+.photo-ai-dialog p { margin: 5px 0 0; color: var(--ink); font-size: 0.84rem; line-height: 1.55; }
+@media (prefers-color-scheme: dark) {
+  .photo-upload-status.error,
+  .album-ai-status.failed { color: #e8917a; }
+}
 
 @media (min-width: 521px) and (max-width: 980px) {
   .log-tools { grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr) auto; align-items: center; }

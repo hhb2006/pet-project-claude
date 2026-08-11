@@ -1,6 +1,6 @@
-// Local data layer. Everything lives in this browser, in IndexedDB — which
-// (unlike localStorage) can hold real files, so each pet can keep attachments
-// alongside its logs and archives. Nothing is uploaded anywhere.
+// Local data layer. Records live in this browser, in IndexedDB — which (unlike
+// localStorage) can hold real files. Network features explicitly prepare only
+// the text or resized image copy they need; original files stay in IndexedDB.
 //
 // Shape:
 //   pets        { id, name, species, breed, owner, created_at,
@@ -11,7 +11,8 @@
 //                 duration, intensity, recovery_period, time_of_day, edited_at }
 //   documents   { id, pet_id, kind: "report" | "note", title, body, created_at }
 //   attachments { id, pet_id, name, type, size, blob, kind, taken_at,
-//                 caption, created_at }
+//                 caption, ai_description, ai_analysis_status,
+//                 ai_analyzed_at, ai_analysis_model, created_at }
 //   sessions    { id, pet_id, title, created_at, updated_at }
 //   messages    { id, session_id, pet_id, role, kind, content, thinking,
 //                 thought_seconds, parent_id, entry_id, created_at }
@@ -353,6 +354,10 @@ async function addAttachment(petId, file, options = {}) {
     kind: options.kind || (String(file.type || "").startsWith("image/") ? "photo" : "file"),
     taken_at: options.taken_at || null,
     caption: String(options.caption || "").trim(),
+    ai_description: options.ai_description || null,
+    ai_analysis_status: options.ai_analysis_status || null,
+    ai_analyzed_at: options.ai_analyzed_at || null,
+    ai_analysis_model: options.ai_analysis_model || null,
   };
   await tx("attachments", "readwrite", s => s.put(att));
   return att;
@@ -364,6 +369,14 @@ async function updateAttachment(id, patch) {
     ...current,
     name: patch.name === undefined ? current.name : String(patch.name).trim(),
     caption: patch.caption === undefined ? current.caption : String(patch.caption).trim(),
+    ai_description: patch.ai_description === undefined
+      ? current.ai_description : (patch.ai_description ? String(patch.ai_description).trim() : null),
+    ai_analysis_status: patch.ai_analysis_status === undefined
+      ? current.ai_analysis_status : (patch.ai_analysis_status || null),
+    ai_analyzed_at: patch.ai_analyzed_at === undefined
+      ? current.ai_analyzed_at : (patch.ai_analyzed_at || null),
+    ai_analysis_model: patch.ai_analysis_model === undefined
+      ? current.ai_analysis_model : (patch.ai_analysis_model || null),
     edited_at: new Date().toISOString(),
   };
   await tx("attachments", "readwrite", store => store.put(next));

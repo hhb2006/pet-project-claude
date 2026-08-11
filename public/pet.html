@@ -262,6 +262,7 @@
       <button type="button" id="photoBtn" data-i18n="add_photos"></button>
       <input type="file" id="photoInput" accept="image/*" multiple hidden />
     </div>
+    <p class="photo-upload-status" id="photoUploadStatus" role="status" aria-live="polite" hidden></p>
     <div class="album-view-controls">
       <label for="photoDisplaySize">
         <span data-i18n="photo_display_size"></span>
@@ -283,6 +284,10 @@
     <div class="photo-dialog-copy">
       <h2 id="photoDialogTitle"></h2>
       <p id="photoDialogMeta"></p>
+      <div class="photo-ai-dialog" id="photoDialogAi" hidden>
+        <strong data-i18n="photo_ai_note"></strong>
+        <p id="photoDialogAiText"></p>
+      </div>
       <div class="dialog-actions">
         <button type="button" id="downloadPhoto" data-i18n="download"></button>
         <button type="button" class="ghost" id="deletePhoto" data-i18n="delete"></button>
@@ -296,6 +301,7 @@
 <script src="/log-filter.js"></script>
 <script src="/pet-memory.js"></script>
 <script src="/speech-input.js"></script>
+<script src="/photo-analysis.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
 <script src="/avatar.js"></script>
@@ -1160,6 +1166,10 @@
     document.getElementById("photoDialogTitle").textContent = attachment.caption || attachment.name;
     document.getElementById("photoDialogMeta").textContent =
       `${albumDateLabel(albumDateValue(attachment))} · ${fileSize(attachment.size)}`;
+    const aiNote = document.getElementById("photoDialogAi");
+    const aiText = document.getElementById("photoDialogAiText");
+    aiNote.hidden = !attachment.ai_description;
+    aiText.textContent = attachment.ai_description || "";
     dialog.showModal();
   }
 
@@ -1212,6 +1222,22 @@
       const meta = document.createElement("span");
       meta.textContent = `${photo.name} · ${fileSize(photo.size)}`;
       copy.append(title, meta);
+      if (photo.ai_description) {
+        const details = document.createElement("details");
+        details.className = "album-ai-note";
+        const summary = document.createElement("summary");
+        summary.textContent = t("photo_ai_note");
+        const description = document.createElement("p");
+        description.textContent = photo.ai_description;
+        details.append(summary, description);
+        copy.appendChild(details);
+      } else if (photo.ai_analysis_status) {
+        const status = document.createElement("span");
+        status.className = `album-ai-status ${photo.ai_analysis_status}`;
+        status.textContent = t(photo.ai_analysis_status === "pending"
+          ? "photo_ai_pending" : "photo_ai_failed");
+        copy.appendChild(status);
+      }
 
       const actions = document.createElement("div");
       actions.className = "album-photo-actions";
@@ -1418,15 +1444,74 @@
   });
   document.getElementById("photoBtn").addEventListener("click", () => document.getElementById("photoInput").click());
   document.getElementById("photoInput").addEventListener("change", async (event) => {
-    const caption = document.getElementById("photoCaption").value.trim();
-    for (const file of event.target.files) {
-      if (!String(file.type || "").startsWith("image/")) continue;
-      await addAttachment(petId, file, { kind: "photo", taken_at: photoDate.value || null, caption });
-    }
+    const files = Array.from(event.target.files).filter(file =>
+      String(file.type || "").startsWith("image/"));
     event.target.value = "";
-    document.getElementById("photoCaption").value = "";
-    await renderAlbum();
-    await refreshMeta();
+    if (!files.length) return;
+    const caption = document.getElementById("photoCaption").value.trim();
+    const uploadStatus = document.getElementById("photoUploadStatus");
+    const photoButton = document.getElementById("photoBtn");
+    photoButton.disabled = true;
+    uploadStatus.hidden = false;
+    let saved = 0;
+    let analyzed = 0;
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        uploadStatus.classList.remove("error");
+        uploadStatus.textContent = t("photo_upload_progress", { n: index + 1, total: files.length });
+        let attachment;
+        try {
+          attachment = await addAttachment(petId, file, {
+            kind: "photo",
+            taken_at: photoDate.value || null,
+            caption,
+            ai_analysis_status: "pending",
+          });
+          saved += 1;
+        } catch (error) {
+          console.error("Could not save album photo", error);
+          continue;
+        }
+        await renderAlbum();
+        try {
+          const image = await PhotoAnalysis.prepare(file);
+          const response = await fetch("/.netlify/functions/analyze-photo", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              image,
+              pet: petContext(),
+              caption,
+              taken_at: photoDate.value || null,
+              lang: langNow(),
+            }),
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || !result.description) throw new Error(result.code || "vision_failed");
+          await updateAttachment(attachment.id, {
+            ai_description: result.description,
+            ai_analysis_status: "complete",
+            ai_analyzed_at: result.analyzed_at,
+            ai_analysis_model: result.model,
+          });
+          analyzed += 1;
+        } catch (error) {
+          console.warn("Photo analysis failed", { code: String(error && error.message || "vision_failed") });
+          await updateAttachment(attachment.id, { ai_analysis_status: "failed" });
+        }
+        await renderAlbum();
+      }
+    } finally {
+      document.getElementById("photoCaption").value = "";
+      photoButton.disabled = false;
+      const incomplete = saved < files.length || analyzed < saved;
+      uploadStatus.classList.toggle("error", incomplete);
+      uploadStatus.textContent = incomplete
+        ? t("photo_upload_result", { saved, analyzed, total: files.length })
+        : t("photo_upload_complete", { n: files.length });
+      await refreshMeta();
+    }
   });
 
   document.getElementById("closePhotoDialog").addEventListener("click", closePhotoDialog);

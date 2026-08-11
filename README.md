@@ -74,8 +74,8 @@ it **never** suggests diagnoses.
 ## Web app (Netlify)
 
 The web app organizes everything **by pet**: each pet is its own project, with
-its own log, documents, and reports. It's a small static site plus three
-serverless functions and one streaming Edge Function — no build step.
+its own log, documents, and reports. It's a small static site plus serverless
+functions and one streaming Edge Function — no build step.
 
 Pages (`public/`):
 
@@ -100,8 +100,10 @@ Pages (`public/`):
     stand now**, a behavioral profile and proportionate next steps — savable
     to Documents or downloadable as `.txt`. The report is generated from the
     log, so the two live together.
-  - **Documents** — write notes (vet visits, medication, diet), attach files
-    (photos, paperwork), and keep saved reports.
+  - **Archives & album** — write notes, attach paperwork, keep saved reports,
+    and add photos to a dated album. A newly uploaded album photo can be
+    analyzed once by a dedicated vision model; its text note is stored beside
+    the photo and becomes bounded, non-binary context for later chat replies.
 
 A pet's name, species and breed can be edited any time via **Edit details**.
 - `db.js` — the local data layer (pets, entries, documents, attachments, chat
@@ -126,6 +128,9 @@ environment variable and is never sent to the browser:**
   `analyze_behavior_log.py`), then has the configured model write the narrative
   report.
 - `advise.js` — non-streaming compatibility endpoint for general pet chat.
+- `analyze-photo.js` — sends a resized copy of a newly added album photo to the
+  separately configured vision model and returns one concise visual note. It
+  does not store the image.
 - `advise-stream.js` — streams DeepSeek thinking and final-answer deltas to the
   chat interface through `/api/advise-stream`.
   General pet chat answers ordinary questions directly without
@@ -153,12 +158,31 @@ Environment variables take precedence over the committed defaults. In Netlify,
 store `ANTHROPIC_API_KEY` as a secret environment variable; add the other two
 only when an environment needs an override. Never commit `.env`.
 
+Album vision uses an independent API key and model. The committed defaults in
+`netlify/lib/vision-defaults.json` use Anthropic's Messages API with
+`claude-haiku-4-5-20251001`. Add the private key locally and in Netlify:
+
+```env
+VISION_API_KEY=your-anthropic-key
+```
+
+The endpoint and model remain replaceable with an image-capable,
+Anthropic-compatible provider:
+
+```env
+VISION_BASE_URL=https://api.anthropic.com
+VISION_MODEL=claude-haiku-4-5-20251001
+```
+
 ### Where your data lives
 
-Everything is stored **privately in your own browser**, in IndexedDB (which,
-unlike `localStorage`, holds real files so attachments work). Nothing is uploaded;
-only the text you send to the assistant leaves the page. An existing single-pet
-log from an earlier version is migrated automatically into a pet on first load.
+Records and original files are stored **privately in your own browser**, in
+IndexedDB. Chat sends the relevant bounded text context to its configured AI.
+When a new album photo is added, the browser removes metadata, scales it to at
+most 1280px and sends that JPEG copy once to the configured vision AI. The
+returned text note is stored locally; later chats receive the note, never the
+image pixels. An existing single-pet log from an earlier version is migrated
+automatically into a pet on first load.
 
 Because storage is per-browser, your pets do **not** sync across devices, and
 clearing site data removes them — use the download buttons to keep copies. See
@@ -170,7 +194,8 @@ the note below to move storage server-side.
    command empty; `netlify.toml` already sets publish dir `public` and the
    functions dir.
 2. In **Site configuration → Environment variables**, add
-   `ANTHROPIC_API_KEY` = your key.
+   `ANTHROPIC_API_KEY` = your chat key and `VISION_API_KEY` = your Anthropic
+   vision key.
 3. **Redeploy** (env var changes need a fresh deploy). Open the site — you should
    see the logger, not a 404.
 

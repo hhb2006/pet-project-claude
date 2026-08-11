@@ -138,6 +138,11 @@ test("adds bounded log and archive memory as untrusted pet context", async () =>
       ],
       archive_documents: [{ kind: "note", title: "Diet", body: longBody }],
       archive_files: [{ name: "lab.pdf", description: "blood test" }],
+      album_photos: [{
+        taken_at: "2026-08-01",
+        owner_caption: "At the park",
+        visual_note: "Standing on grass beside a red ball",
+      }],
     },
   }));
   await eventsFrom(response);
@@ -146,6 +151,7 @@ test("adds bounded log and archive memory as untrusted pet context", async () =>
   assert.equal(contextMessage.includes("paces before storms"), true);
   assert.equal(contextMessage.includes('"intensity":null'), true);
   assert.equal(contextMessage.includes("lab.pdf"), true);
+  assert.equal(contextMessage.includes("Standing on grass beside a red ball"), true);
   assert.equal(contextMessage.includes("<override>"), false);
   assert.equal(contextMessage.includes("x".repeat(1201)), false);
   assert.equal(upstreamRequest.system.includes("untrusted"), true);

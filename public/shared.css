@@ -574,8 +574,13 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .docitem h4 { margin: 0 0 2px; font-size: 0.98rem; }
 .docitem .meta { color: var(--muted); font-size: 0.8rem; }
 .docitem .body { white-space: pre-wrap; margin-top: 8px; font-size: 0.92rem; }
-.docitem .actions { margin-top: 8px; display: flex; gap: 8px; }
-.docitem .actions button { padding: 5px 10px; font-size: 0.82rem; }
+.docitem .actions { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+.docitem .actions button { min-height: 44px; padding: 7px 10px; font-size: 0.82rem; }
+.archive-edit-fields { display: grid; gap: 14px; margin-top: 18px; }
+.archive-edit-fields input,
+.archive-edit-fields textarea { width: 100%; max-height: none; }
+.archive-edit-fields textarea { min-height: 180px; resize: vertical; }
+.archive-edit-dialog .dialog-close { width: 44px; height: 44px; }
 .entryfields {
   margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr; gap: 3px 12px;
   font-size: 0.88rem;

@@ -327,6 +327,18 @@ async function addDocument(petId, { kind, title, body }) {
   await tx("documents", "readwrite", s => s.put(doc));
   return doc;
 }
+async function updateDocument(id, patch) {
+  const current = await tx("documents", "readonly", store => reqOf(store.get(id)));
+  if (!current) return null;
+  const next = {
+    ...current,
+    title: patch.title === undefined ? current.title : String(patch.title).trim(),
+    body: patch.body === undefined ? current.body : String(patch.body),
+    edited_at: new Date().toISOString(),
+  };
+  await tx("documents", "readwrite", store => store.put(next));
+  return next;
+}
 async function deleteDocument(id) { await tx("documents", "readwrite", s => s.delete(id)); }
 
 // ── Attachments (album photos + paperwork — stored as real files) ────────────
@@ -344,6 +356,18 @@ async function addAttachment(petId, file, options = {}) {
   };
   await tx("attachments", "readwrite", s => s.put(att));
   return att;
+}
+async function updateAttachment(id, patch) {
+  const current = await tx("attachments", "readonly", store => reqOf(store.get(id)));
+  if (!current) return null;
+  const next = {
+    ...current,
+    name: patch.name === undefined ? current.name : String(patch.name).trim(),
+    caption: patch.caption === undefined ? current.caption : String(patch.caption).trim(),
+    edited_at: new Date().toISOString(),
+  };
+  await tx("attachments", "readwrite", store => store.put(next));
+  return next;
 }
 async function deleteAttachment(id) { await tx("attachments", "readwrite", s => s.delete(id)); }
 

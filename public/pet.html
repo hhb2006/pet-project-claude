@@ -200,6 +200,34 @@
   </form>
 </dialog>
 
+<dialog class="log-dialog archive-edit-dialog" id="archiveEditDialog"
+        aria-labelledby="archiveEditTitle" aria-describedby="archiveEditHint">
+  <form id="archiveEditForm">
+    <div class="dialog-head">
+      <div>
+        <h2 id="archiveEditTitle" data-i18n="edit_archive"></h2>
+        <p id="archiveEditHint" data-i18n="edit_archive_hint"></p>
+      </div>
+      <button type="button" class="dialog-close" id="closeArchiveEdit"
+              data-i18n-title="close" data-i18n-aria-label="close">×</button>
+    </div>
+    <div class="archive-edit-fields">
+      <label class="ffield" for="archiveEditName">
+        <span data-i18n="archive_name"></span>
+        <input type="text" id="archiveEditName" />
+      </label>
+      <label class="ffield" for="archiveEditBody">
+        <span id="archiveEditBodyLabel"></span>
+        <textarea id="archiveEditBody" rows="8"></textarea>
+      </label>
+    </div>
+    <div class="dialog-actions">
+      <button type="button" class="ghost" id="cancelArchiveEdit" data-i18n="cancel"></button>
+      <button type="submit" id="saveArchiveEdit" data-i18n="save_changes"></button>
+    </div>
+  </form>
+</dialog>
+
 <dialog class="album-dialog" id="albumDialog" aria-labelledby="albumTitle">
   <div class="album-dialog-shell">
     <div class="album-dialog-head">
@@ -254,6 +282,7 @@
 <script src="/db.js"></script>
 <script src="/i18n.js"></script>
 <script src="/log-filter.js"></script>
+<script src="/pet-memory.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
 <script src="/avatar.js"></script>
@@ -263,6 +292,14 @@
   let pet = null;
   function petContext() { return { name: pet.name, species: pet.species, breed: pet.breed || "" }; }
   function langNow() { return getLang(); }
+  async function petMemoryContext() {
+    const [entries, documents, attachments] = await Promise.all([
+      listEntries(petId),
+      listDocuments(petId),
+      listAttachments(petId),
+    ]);
+    return PetMemory.build({ entries, documents, attachments });
+  }
 
   // ── Tabs ────────────────────────────────────────────────────────────
   // All three panels render side by side on wide screens; on narrow screens
@@ -683,9 +720,11 @@
       const history = activePath
         .filter(m => m.kind === "advice")
         .map(m => ({ role: m.role, content: m.content }));
+      const memory = await petMemoryContext();
       const res = await fetchAdviceStream({
         messages: history,
         pet: petContext(),
+        memory,
         lang: langNow(),
       }, controller.signal);
 
@@ -1176,6 +1215,61 @@
     renderPhotoTimeline(photos);
   }
 
+  const archiveEditDialog = document.getElementById("archiveEditDialog");
+  const archiveEditForm = document.getElementById("archiveEditForm");
+  const archiveEditName = document.getElementById("archiveEditName");
+  const archiveEditBody = document.getElementById("archiveEditBody");
+  const archiveEditBodyLabel = document.getElementById("archiveEditBodyLabel");
+  const saveArchiveEdit = document.getElementById("saveArchiveEdit");
+  let archiveEditTarget = null;
+
+  function closeArchiveEditor() {
+    if (archiveEditDialog.open) archiveEditDialog.close();
+  }
+
+  function openArchiveEditor(type, item) {
+    archiveEditTarget = { type, id: item.id };
+    archiveEditName.value = item.title || item.name || "";
+    archiveEditBody.value = type === "document" ? (item.body || "") : (item.caption || "");
+    archiveEditBodyLabel.textContent = t(type === "document" ? "archive_content" : "archive_description");
+    archiveEditDialog.showModal();
+    archiveEditName.focus();
+    archiveEditName.select();
+  }
+
+  document.getElementById("closeArchiveEdit").addEventListener("click", closeArchiveEditor);
+  document.getElementById("cancelArchiveEdit").addEventListener("click", closeArchiveEditor);
+  archiveEditDialog.addEventListener("click", event => {
+    if (event.target === event.currentTarget) closeArchiveEditor();
+  });
+  archiveEditDialog.addEventListener("close", () => { archiveEditTarget = null; });
+  archiveEditForm.addEventListener("submit", async event => {
+    event.preventDefault();
+    const target = archiveEditTarget;
+    const name = archiveEditName.value.trim();
+    if (!target || !name) {
+      alert(t("archive_name_required"));
+      archiveEditName.focus();
+      return;
+    }
+    saveArchiveEdit.disabled = true;
+    try {
+      if (target.type === "document") {
+        await updateDocument(target.id, { title: name, body: archiveEditBody.value });
+      } else {
+        await updateAttachment(target.id, { name, caption: archiveEditBody.value });
+      }
+      closeArchiveEditor();
+      await renderDocs();
+      await refreshMeta();
+    } catch (error) {
+      console.error("Could not update archive item", error);
+      alert(t("archive_save_failed"));
+    } finally {
+      saveArchiveEdit.disabled = false;
+    }
+  });
+
   async function renderDocs() {
     const [docs, atts] = await Promise.all([listDocuments(petId), listAttachments(petId)]);
     const files = atts.filter(attachment => !isPhotoAttachment(attachment));
@@ -1190,12 +1284,14 @@
       item.className = "docitem";
       item.innerHTML = `
         <h4>${d.kind === "report" ? "📄" : "📝"} ${esc(d.title)}</h4>
-        <div class="meta">${d.kind === "report" ? t("doc_report") : t("doc_note")} · ${fmtDate(d.created_at)}</div>
+        <div class="meta">${d.kind === "report" ? t("doc_report") : t("doc_note")} · ${fmtDate(d.created_at)}${d.edited_at ? " · " + t("edited") : ""}</div>
         <details><summary>${t("read")}</summary><div class="body">${esc(d.body)}</div></details>
         <div class="actions">
+          <button class="ghost edit">${t("edit")}</button>
           <button class="ghost dl">${t("download")}</button>
           <button class="ghost del">${t("delete")}</button>
         </div>`;
+      item.querySelector(".edit").onclick = () => openArchiveEditor("document", d);
       item.querySelector(".dl").onclick = () =>
         download(d.body, `${d.title.replace(/[^a-z0-9]+/gi, "_").toLowerCase()}.txt`, "text/plain");
       item.querySelector(".del").onclick = async () => {
@@ -1209,11 +1305,14 @@
       item.className = "docitem";
       item.innerHTML = `
         <h4>📎 ${esc(a.name)}</h4>
-        <div class="meta">${esc(a.type)} · ${fileSize(a.size)} · ${fmtDate(a.created_at)}</div>
+        <div class="meta">${esc(a.type)} · ${fileSize(a.size)} · ${fmtDate(a.created_at)}${a.edited_at ? " · " + t("edited") : ""}</div>
+        ${a.caption ? `<div class="body">${esc(a.caption)}</div>` : ""}
         <div class="actions">
+          <button class="ghost edit">${t("edit")}</button>
           <button class="ghost dl">${t("download")}</button>
           <button class="ghost del">${t("delete")}</button>
         </div>`;
+      item.querySelector(".edit").onclick = () => openArchiveEditor("attachment", a);
       item.querySelector(".dl").onclick = () => download(a.blob, a.name);
       item.querySelector(".del").onclick = async () => {
         if (!confirm(t("confirm_del_doc", { title: a.name }))) return;

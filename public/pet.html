@@ -74,8 +74,20 @@
         <div class="log" id="chatlog"></div>
         <form class="composer" id="composer">
           <textarea id="input" rows="1" autofocus></textarea>
+          <button type="button" class="ghost voice-input" id="voiceInput" hidden
+                  aria-pressed="false" data-i18n-title="voice_start"
+                  data-i18n-aria-label="voice_start">
+            <svg class="voice-mic-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" />
+              <path d="M19 11v1a7 7 0 0 1-14 0v-1M12 19v3M8 22h8" />
+            </svg>
+            <svg class="voice-stop-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="7" y="7" width="10" height="10" rx="2" />
+            </svg>
+          </button>
           <button type="submit" id="send" data-i18n="send"></button>
         </form>
+        <p class="voice-status" id="voiceStatus" role="status" aria-live="polite" hidden></p>
         <p class="choicehint" id="choicehint"></p>
       </div>
     </section>
@@ -283,6 +295,7 @@
 <script src="/i18n.js"></script>
 <script src="/log-filter.js"></script>
 <script src="/pet-memory.js"></script>
+<script src="/speech-input.js"></script>
 <script src="/species.js"></script>
 <script src="/app.js"></script>
 <script src="/avatar.js"></script>
@@ -318,6 +331,17 @@
   const chatlog = document.getElementById("chatlog");
   const input = document.getElementById("input");
   const sendBtn = document.getElementById("send");
+  const voiceInput = VoiceInput.create({
+    input,
+    button: document.getElementById("voiceInput"),
+    status: document.getElementById("voiceStatus"),
+    translate: key => t(key),
+    getLang,
+    onTranscript: () => {
+      input.style.height = "auto";
+      input.style.height = input.scrollHeight + "px";
+    },
+  });
   const sessionSel = document.getElementById("sessionSel");
   const hintEl = document.getElementById("choicehint");
   const logDialog = document.getElementById("logDialog");
@@ -675,6 +699,7 @@
     e.preventDefault();
     const text = input.value.trim();
     if (!text || sendBtn.disabled) return;
+    voiceInput.abort();
     input.value = ""; input.style.height = "auto";
 
     if (!session) await newSession();

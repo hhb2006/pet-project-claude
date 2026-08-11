@@ -242,6 +242,35 @@ header.pet-header {
 
 /* Composer / forms */
 .composer { display: flex; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
+.voice-input {
+  flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0;
+  display: grid; place-items: center; align-self: flex-end;
+}
+.voice-input[hidden] { display: none; }
+.voice-input svg {
+  grid-area: 1 / 1; width: 21px; height: 21px; fill: none;
+  stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.voice-input .voice-stop-icon { display: none; }
+.composer button.voice-input.listening {
+  color: #fff; background: var(--accent-2); border-color: var(--accent-2);
+  box-shadow: 0 0 0 4px var(--accent-2-soft);
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+.composer button.voice-input.listening .voice-mic-icon { display: none; }
+.composer button.voice-input.listening .voice-stop-icon { display: block; }
+.voice-status {
+  margin: 0; padding: 0 14px 9px; color: var(--muted);
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--card));
+  font-size: 0.8rem; line-height: 1.4;
+}
+.voice-status.error { color: #b4462f; }
+@keyframes voice-pulse {
+  50% { box-shadow: 0 0 0 7px var(--accent-2-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer button.voice-input.listening { animation: none; }
+}
 textarea, input[type="text"], input[type="number"], input[type="search"], input[type="date"] {
   flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px;
   padding: 11px 14px; font: inherit; color: inherit; background: var(--bg); max-height: 140px;

@@ -84,8 +84,8 @@ Pages (`public/`):
 - `pet.html?id=…` — a pet's workspace, with three tabs:
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
     (with a "＋ New chat" for a fresh topic, like any LLM chat app). Replies
-    stream into the page, with a collapsible thinking section and a stop
-    control. User messages can be edited; assistant replies can be copied or
+    stream into the page with a stop control. User messages can be edited;
+    assistant replies can be copied or
     regenerated. Editing and regeneration create switchable branches, so the
     original conversation and any log linked to it remain intact. Chat is
     advice by default and **nothing is saved to the log unless you say so**.
@@ -133,7 +133,7 @@ environment variable and is never sent to the browser:**
 - `analyze-photo.js` — sends a resized copy of a newly added album photo to the
   separately configured vision model and returns one concise visual note. It
   does not store the image.
-- `advise-stream.js` — streams OpenAI reasoning summaries and final-answer deltas to the
+- `advise-stream.js` — streams OpenAI final-answer deltas to the
   chat interface through `/api/advise-stream`.
   General pet chat answers ordinary questions directly without
   turning the conversation into a logging questionnaire, and gives

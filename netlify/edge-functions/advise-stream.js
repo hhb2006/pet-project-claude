@@ -44,7 +44,7 @@ export default async function adviseStream(request) {
         max_output_tokens: 2048,
         instructions: SYSTEM_PROMPT + langNote(body.lang),
         input: addPetContext(messages, body.pet, body.memory),
-        reasoning: { effort: "low", summary: "auto" },
+        reasoning: { effort: "none" },
         stream: true,
         store: false,
       }),
@@ -86,21 +86,11 @@ export default async function adviseStream(request) {
     controller.close();
   };
 
-  const stream = new ReadableStream({
-    start(controller) {
-      // Netlify can terminate very long Edge responses before the final frame.
-      // Close cleanly first so the browser keeps all deltas it already received.
-      timeoutId = setTimeout(() => {
-        if (finished) return;
-        controller.enqueue(line({ type: "timeout" }));
-        finish(controller);
-        reader.cancel().catch(() => {});
-      }, 45000);
-    },
-    async pull(controller) {
-      if (finished) return;
-      try {
+  const pump = async controller => {
+    try {
+      while (!finished) {
         const { done, value } = await reader.read();
+        if (finished) return;
         if (done) {
           flushSse(pending, controller);
           finish(controller);
@@ -115,11 +105,25 @@ export default async function adviseStream(request) {
           reader.cancel().catch(() => {});
           return;
         }
-      } catch (error) {
-        if (finished) return;
-        controller.enqueue(line({ type: "error", error: String(error) }));
-        finish(controller);
       }
+    } catch (error) {
+      if (finished) return;
+      controller.enqueue(line({ type: "error", error: String(error) }));
+      finish(controller);
+    }
+  };
+
+  const stream = new ReadableStream({
+    start(controller) {
+      // Netlify can terminate very long Edge responses before the final frame.
+      // Close cleanly first so the browser keeps all deltas it already received.
+      timeoutId = setTimeout(() => {
+        if (finished) return;
+        controller.enqueue(line({ type: "timeout" }));
+        finish(controller);
+        reader.cancel().catch(() => {});
+      }, 45000);
+      void pump(controller);
     },
     cancel() {
       finished = true;
@@ -173,10 +177,6 @@ function flushSse(frame, controller) {
     return true;
   }
 
-  if (event.type === "response.reasoning_summary_text.delta" &&
-      typeof event.delta === "string" && event.delta) {
-    controller.enqueue(line({ type: "thinking", delta: event.delta }));
-  }
   if (event.type === "response.output_text.delta" &&
       typeof event.delta === "string" && event.delta) {
     controller.enqueue(line({ type: "answer", delta: event.delta }));

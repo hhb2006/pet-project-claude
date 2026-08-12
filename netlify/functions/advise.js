@@ -5,7 +5,6 @@ const { getLlmConfig } = require("../lib/llm-config");
 const {
   openAiHeaders,
   extractOutputText,
-  extractReasoningSummary,
 } = require("../lib/openai-responses");
 const promptModule = import("../lib/advice-prompt.mjs");
 
@@ -42,7 +41,7 @@ exports.handler = async (event) => {
         max_output_tokens: 2048,
         instructions: system,
         input: contextualMessages,
-        reasoning: { effort: "low", summary: "auto" },
+        reasoning: { effort: "none" },
         store: false,
       }),
     });
@@ -52,8 +51,7 @@ exports.handler = async (event) => {
     }
     const data = await resp.json();
     const reply = extractOutputText(data);
-    const thinking = extractReasoningSummary(data).slice(0, 30000);
-    return json(200, { reply, thinking });
+    return json(200, { reply, thinking: "" });
   } catch (err) {
     return json(502, { error: "Couldn't reach the assistant.", detail: String(err) });
   }

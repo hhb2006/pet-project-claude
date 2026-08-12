@@ -42,6 +42,20 @@ function openSse(events, onCancel = () => {}) {
   });
 }
 
+function chunkedSse(chunks) {
+  return new ReadableStream({
+    start(controller) {
+      let index = 0;
+      const push = () => {
+        if (index >= chunks.length) return;
+        controller.enqueue(new TextEncoder().encode(chunks[index++]));
+        if (index < chunks.length) setTimeout(push, 5);
+      };
+      push();
+    },
+  });
+}
+
 async function eventsFrom(response) {
   return (await response.text())
     .trim()
@@ -73,7 +87,6 @@ test("finishes immediately on response.completed even when upstream stays open",
   ]);
 
   assert.deepEqual(events.map(event => event.type), [
-    "thinking",
     "answer",
     "done",
   ]);
@@ -93,6 +106,23 @@ test("finishes on response.incomplete without waiting for the connection to clos
   ]));
 
   const events = await eventsFrom(await handler(request()));
+  assert.deepEqual(events.map(event => event.type), ["answer", "done"]);
+});
+
+test("keeps reading when lifecycle events arrive before answer events", async () => {
+  globalThis.fetch = async () => new Response(chunkedSse([
+    'event: response.created\ndata: {"type":"response.created"}\n\n',
+    'event: response.in_progress\ndata: {"type":"response.in_progress"}\n\n',
+    'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"OK"}\n\n' +
+      'event: response.completed\ndata: {"type":"response.completed"}\n\n',
+  ]));
+
+  const events = await Promise.race([
+    eventsFrom(await handler(request())),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("stream stalled on lifecycle event")), 500)
+    ),
+  ]);
   assert.deepEqual(events.map(event => event.type), ["answer", "done"]);
 });
 
@@ -158,5 +188,5 @@ test("adds bounded log and archive memory as untrusted pet context", async () =>
   assert.equal(upstreamRequest.instructions.includes("untrusted"), true);
   assert.equal(upstreamRequest.model, "test-model");
   assert.equal(upstreamRequest.store, false);
-  assert.deepEqual(upstreamRequest.reasoning, { effort: "low", summary: "auto" });
+  assert.deepEqual(upstreamRequest.reasoning, { effort: "none" });
 });

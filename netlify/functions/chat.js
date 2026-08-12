@@ -3,6 +3,7 @@
 // questions or gives advice. The API key stays server-side.
 
 const { getLlmConfig } = require("../lib/llm-config");
+const { openAiHeaders, extractFunctionArguments } = require("../lib/openai-responses");
 
 const SYSTEM_PROMPT = `You are a structured extraction component for a pet diary.
 
@@ -98,7 +99,7 @@ exports.handler = async (event) => {
   if (!apiKey) {
     return json(500, {
       error:
-        "The site owner hasn't set ANTHROPIC_API_KEY yet. Add it in Netlify → " +
+        "The site owner hasn't set OPENAI_API_KEY yet. Add it in Netlify → " +
         "Site configuration → Environment variables, then redeploy.",
     });
   }
@@ -120,24 +121,28 @@ exports.handler = async (event) => {
   try {
     const resp = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers: openAiHeaders(apiKey),
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
-        thinking: { type: "disabled" },
-        system: SYSTEM_PROMPT,
-        tools: [TOOL],
-        tool_choice: { type: "tool", name: "record_event" },
-        messages: cleanMessages.map(({ role, content, source_id }) => ({
+        max_output_tokens: 2048,
+        reasoning: { effort: "low" },
+        instructions: SYSTEM_PROMPT,
+        tools: [{
+          type: "function",
+          name: TOOL.name,
+          description: TOOL.description,
+          parameters: TOOL.input_schema,
+          strict: true,
+        }],
+        tool_choice: { type: "function", name: "record_event" },
+        parallel_tool_calls: false,
+        input: cleanMessages.map(({ role, content, source_id }) => ({
           role,
           content: source_id
             ? `<source_message_id>${source_id}</source_message_id>\n${content}`
             : content,
         })),
+        store: false,
       }),
     });
 
@@ -147,11 +152,11 @@ exports.handler = async (event) => {
     }
 
     const data = await resp.json();
-    const toolUse = (data.content || []).find(block => block.type === "tool_use");
-    if (!toolUse) {
+    const toolInput = extractFunctionArguments(data, "record_event");
+    if (!toolInput) {
       return json(502, { error: "The assistant didn't return a usable answer." });
     }
-    const record = cleanRecord(toolUse.input, allowedSourceIds);
+    const record = cleanRecord(toolInput, allowedSourceIds);
     return json(200, {
       ...record,
       has_observation: record.behavior_type !== null,

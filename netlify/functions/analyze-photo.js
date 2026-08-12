@@ -5,6 +5,7 @@
 // text is stored by the browser; this function does not retain the image.
 
 const { getVisionConfig } = require("../lib/vision-config");
+const { openAiHeaders, extractOutputText } = require("../lib/openai-responses");
 
 const ALLOWED_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_BASE64_CHARS = 5_500_000;
@@ -55,10 +56,7 @@ exports.handler = async event => {
   try {
     response = await fetch(endpoint, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "authorization": `Bearer ${apiKey}`,
-      },
+      headers: openAiHeaders(apiKey),
       body: JSON.stringify({
         model,
         max_output_tokens: 500,
@@ -99,14 +97,7 @@ exports.handler = async event => {
   let data;
   try { data = await response.json(); }
   catch { return json(502, { error: "Photo analysis returned an unreadable result.", code: "vision_failed" }); }
-  const description = (Array.isArray(data.output) ? data.output : [])
-    .filter(item => item && item.type === "message" && Array.isArray(item.content))
-    .flatMap(item => item.content)
-    .filter(part => part && part.type === "output_text" && typeof part.text === "string")
-    .map(part => part.text)
-    .join("\n")
-    .trim()
-    .slice(0, 1200);
+  const description = extractOutputText(data).slice(0, 1200);
   if (!description) {
     return json(502, { error: "Photo analysis returned no description.", code: "vision_failed" });
   }

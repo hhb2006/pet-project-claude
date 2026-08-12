@@ -1,10 +1,11 @@
 // Serverless backend for the Analyzer. The browser posts the logged records;
 // this function computes the factual patterns deterministically (a JS port of
-// analyze_behavior_log.py), then asks Claude to write a warm observer's report:
+// analyze_behavior_log.py), then asks the configured model to write a warm observer's report:
 // a narrative summary, a bullet behavioral profile, and proportionate next
 // steps. It never diagnoses. The API key stays server side.
 
 const { getLlmConfig } = require("../lib/llm-config");
+const { openAiHeaders, extractOutputText } = require("../lib/openai-responses");
 
 const SYSTEM_PROMPT = `You are a calm, perceptive observer helping a pet owner make \
 sense of a log of their pet's behavior. You write like a thoughtful friend who notices \
@@ -135,7 +136,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed." });
 
   const { apiKey, endpoint, model } = getLlmConfig();
-  if (!apiKey) return json(500, { error: "The site owner hasn't set ANTHROPIC_API_KEY yet." });
+  if (!apiKey) return json(500, { error: "The site owner hasn't set OPENAI_API_KEY yet." });
 
   let records, pet, lang;
   try { ({ records, pet, lang } = JSON.parse(event.body || "{}")); }
@@ -165,12 +166,14 @@ exports.handler = async (event) => {
   try {
     const resp = await fetch(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+      headers: openAiHeaders(apiKey),
       body: JSON.stringify({
         model,
-        max_tokens: 2048,
-        system,
-        messages: [{ role: "user", content: userContent }],
+        max_output_tokens: 4096,
+        instructions: system,
+        input: [{ role: "user", content: userContent }],
+        reasoning: { effort: "low" },
+        store: false,
       }),
     });
     if (!resp.ok) {
@@ -178,7 +181,7 @@ exports.handler = async (event) => {
       return json(502, { error: "The assistant is having trouble right now.", detail });
     }
     const data = await resp.json();
-    const body = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
+    const body = extractOutputText(data);
     return json(200, {
       report_body: body,
       record_count: analysis.record_count,

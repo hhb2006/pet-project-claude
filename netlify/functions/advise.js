@@ -2,6 +2,11 @@
 // think through a specific situation, and clearly signpost genuine emergencies.
 
 const { getLlmConfig } = require("../lib/llm-config");
+const {
+  openAiHeaders,
+  extractOutputText,
+  extractReasoningSummary,
+} = require("../lib/openai-responses");
 const promptModule = import("../lib/advice-prompt.mjs");
 
 exports.handler = async (event) => {
@@ -11,7 +16,7 @@ exports.handler = async (event) => {
     await Promise.all([promptModule, Promise.resolve(getLlmConfig())]);
   if (!apiKey) {
     return json(500, {
-      error: "The site owner hasn't set ANTHROPIC_API_KEY yet. Add it in Netlify → " +
+      error: "The site owner hasn't set OPENAI_API_KEY yet. Add it in Netlify → " +
              "Site configuration → Environment variables, then redeploy.",
     });
   }
@@ -31,36 +36,28 @@ exports.handler = async (event) => {
   try {
     const resp = await fetch(endpoint, {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model, max_tokens: 1024, system, messages: contextualMessages }),
+      headers: openAiHeaders(apiKey),
+      body: JSON.stringify({
+        model,
+        max_output_tokens: 2048,
+        instructions: system,
+        input: contextualMessages,
+        reasoning: { effort: "low", summary: "auto" },
+        store: false,
+      }),
     });
     if (!resp.ok) {
       const detail = await resp.text();
       return json(502, { error: "The assistant is having trouble right now.", detail });
     }
     const data = await resp.json();
-    const reply = (data.content || []).filter(b => b.type === "text").map(b => b.text).join("").trim();
-    const thinking = extractThinking(data);
+    const reply = extractOutputText(data);
+    const thinking = extractReasoningSummary(data).slice(0, 30000);
     return json(200, { reply, thinking });
   } catch (err) {
     return json(502, { error: "Couldn't reach the assistant.", detail: String(err) });
   }
 };
-
-function extractThinking(data) {
-  const blocks = Array.isArray(data && data.content) ? data.content : [];
-  const blockThinking = blocks
-    .filter(block => block && block.type === "thinking")
-    .map(block => block.thinking || block.reasoning_content || block.text || "")
-    .filter(Boolean)
-    .join("\n\n")
-    .trim();
-  const thinking = blockThinking || (
-    typeof data.reasoning_content === "string" ? data.reasoning_content.trim() : ""
-  );
-  return thinking.slice(0, 30000);
-}
-
 
 function normalizeMessages(messages) {
   const selected = messages

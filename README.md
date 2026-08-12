@@ -121,7 +121,7 @@ translated too; the stored values stay English so records are language-neutral
 and switching languages never rewrites your data.
 
 Functions (`netlify/functions/`) and the streaming Edge Function
-(`netlify/edge-functions/`) — **your Anthropic API key lives here as an
+(`netlify/edge-functions/`) — **your OpenAI API key lives here as an
 environment variable and is never sent to the browser:**
 
 - `chat.js` — logging; calls the configured model with a forced tool for clean
@@ -133,50 +133,39 @@ environment variable and is never sent to the browser:**
 - `analyze-photo.js` — sends a resized copy of a newly added album photo to the
   separately configured vision model and returns one concise visual note. It
   does not store the image.
-- `advise-stream.js` — streams DeepSeek thinking and final-answer deltas to the
+- `advise-stream.js` — streams OpenAI reasoning summaries and final-answer deltas to the
   chat interface through `/api/advise-stream`.
   General pet chat answers ordinary questions directly without
   turning the conversation into a logging questionnaire, and gives
   **non-diagnostic** help with clear emergency signposting.
 
-The committed defaults in `netlify/lib/llm-defaults.json` use DeepSeek's
-Anthropic-compatible API and `deepseek-v4-flash`. For local development, the
-ignored `.env` only needs the private key:
+Chat, log extraction, reports, and image analysis all use OpenAI's Responses API.
+The committed defaults use `gpt-5.6-luna`. For local development, the ignored
+`.env` needs the active OpenAI key:
 
 ```env
-ANTHROPIC_API_KEY=your-deepseek-key
-```
-
-All three existing environment variables remain supported. To test another
-Anthropic-compatible endpoint or model without changing the committed defaults,
-override either value locally or in Netlify:
-
-```env
-ANTHROPIC_BASE_URL=https://another-compatible-provider.example
-ANTHROPIC_MODEL=another-model
-```
-
-Environment variables take precedence over the committed defaults. In Netlify,
-store `ANTHROPIC_API_KEY` as a secret environment variable; add the other two
-only when an environment needs an override. Never commit `.env`.
-
-Image analysis uses OpenAI's Responses API while chat, log extraction, and reports
-continue to use the DeepSeek Anthropic-compatible endpoint. The committed vision
-defaults in `netlify/lib/vision-defaults.json` use `gpt-5.6-luna`. Locally, only
-the two private keys are required:
-
-```env
-ANTHROPIC_API_KEY=your-deepseek-key
 OPENAI_API_KEY=your-openai-key
 ```
 
-The OpenAI vision endpoint and model are already committed. Optional overrides
-remain available for testing, but do not need to be added to `.env`:
+The old Anthropic/DeepSeek key may remain in the local `.env` for a future
+provider switch, but the web app does not currently read it:
+
+```env
+ANTHROPIC_API_KEY=your-previous-provider-key
+```
+
+The endpoint and models are already committed. Optional overrides remain
+available locally or in Netlify, but do not need to be added to `.env`:
 
 ```env
 OPENAI_BASE_URL=https://api.openai.com
+OPENAI_MODEL=gpt-5.6-luna
 OPENAI_VISION_MODEL=gpt-5.6-luna
 ```
+
+`OPENAI_MODEL` controls chat, log extraction, and reports. Image analysis uses
+the same value unless `OPENAI_VISION_MODEL` is set. Environment variables take
+precedence over committed defaults. Never commit `.env`.
 
 ### Where your data lives
 
@@ -198,15 +187,15 @@ the note below to move storage server-side.
    command empty; `netlify.toml` already sets publish dir `public` and the
    functions dir.
 2. In **Site configuration → Environment variables**, add
-   `ANTHROPIC_API_KEY` = your DeepSeek chat key and `OPENAI_API_KEY` = your
-   OpenAI vision key.
+   `OPENAI_API_KEY` = your OpenAI API key. `ANTHROPIC_API_KEY` may remain stored
+   but is not used by the current web app.
 3. **Redeploy** (env var changes need a fresh deploy). Open the site — you should
    see the logger, not a 404.
 
 If you still get a 404, check that the site's build settings in the Netlify UI
 haven't overridden `netlify.toml` (the publish directory must be `public`).
 Without the env var, the page loads but the assistant replies with a message
-asking the owner to set `ANTHROPIC_API_KEY`.
+asking the owner to set `OPENAI_API_KEY`.
 
 ### Regression checks
 

@@ -23,14 +23,15 @@ test("accepts only a source ID supplied with the request", () => {
 });
 
 test("returns the model-selected source event for a natural-language log command", async () => {
-  process.env.ANTHROPIC_API_KEY = "test-key";
+  process.env.OPENAI_API_KEY = "test-key";
   let upstream;
   globalThis.fetch = async (_url, options) => {
     upstream = JSON.parse(options.body);
     return new Response(JSON.stringify({
-      content: [{
-        type: "tool_use",
-        input: {
+      output: [{
+        type: "function_call",
+        name: "record_event",
+        arguments: JSON.stringify({
           behavior_type: "barking",
           trigger: "doorbell",
           timestamp: null,
@@ -38,7 +39,7 @@ test("returns the model-selected source event for a natural-language log command
           intensity: null,
           recovery_period: null,
           source_message_id: "event-1",
-        },
+        }),
       }],
     }), { status: 200, headers: { "content-type": "application/json" } });
   };
@@ -53,5 +54,8 @@ test("returns the model-selected source event for a natural-language log command
   const body = JSON.parse(response.body);
 
   assert.equal(body.source_message_id, "event-1");
-  assert.match(upstream.messages[0].content, /<source_message_id>event-1<\/source_message_id>/);
+  assert.match(upstream.input[0].content, /<source_message_id>event-1<\/source_message_id>/);
+  assert.equal(upstream.tools[0].strict, true);
+  assert.deepEqual(upstream.tool_choice, { type: "function", name: "record_event" });
+  assert.equal(upstream.store, false);
 });

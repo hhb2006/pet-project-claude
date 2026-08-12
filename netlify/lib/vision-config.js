@@ -7,7 +7,7 @@ function getVisionConfig() {
     process.env.OPENAI_BASE_URL || defaults.OPENAI_BASE_URL
   ).trim().replace(/\/+$/, "");
   const model = String(
-    process.env.OPENAI_VISION_MODEL || defaults.OPENAI_VISION_MODEL
+    process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || defaults.OPENAI_VISION_MODEL
   ).trim();
   return {
     apiKey: process.env.OPENAI_API_KEY,

@@ -88,11 +88,13 @@ Pages (`public/`):
     control. User messages can be edited; assistant replies can be copied or
     regenerated. Editing and regeneration create switchable branches, so the
     original conversation and any log linked to it remain intact. Chat is
-    advice by default and **nothing is saved to the log unless you say so**:
-    every message you send carries its own **"＋ Complete & add to log"** action.
-    It extracts the details already mentioned, opens a small review form for
-    any corrections or missing fields, and saves exactly one entry linked to
-    that source message. The same control then becomes **"✓ Added · View/edit"**.
+    advice by default and **nothing is saved to the log unless you say so**.
+    You can use the **"＋ Complete & add to log"** action or say “log this” /
+    “把刚才的情况记到日志”. The assistant extracts the details already mentioned,
+    identifies the source event message, and opens a review form for corrections
+    or missing fields. It saves only after confirmation and reuses the linked entry
+    instead of creating a duplicate. The control then becomes
+    **"✓ Added · View/edit"**.
   - **Log** — every entry added from chat, newest first, each **editable** (fill
     in what the message didn't mention, or correct it — a blank field records as
     "not recorded") and deletable, plus

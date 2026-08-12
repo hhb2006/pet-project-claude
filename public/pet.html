@@ -311,6 +311,7 @@
 <script src="/db.js"></script>
 <script src="/i18n.js"></script>
 <script src="/log-filter.js"></script>
+<script src="/log-command.js"></script>
 <script src="/pet-memory.js"></script>
 <script src="/speech-input.js"></script>
 <script src="/photo-analysis.js"></script>
@@ -927,6 +928,11 @@
     }
     activePath = pathToLeaf(userMessage.id);
     renderActiveChat();
+    if (LogCommand.isRequest(text)) {
+      const action = logActionForMessage(userMessage.id);
+      const prepared = await prepareLog(userMessage, action, { fromCommand: true });
+      if (prepared) return;
+    }
     await runAdvice(userMessage);
   });
 
@@ -1209,28 +1215,48 @@
     act.appendChild(b);
   }
 
-  async function prepareLog(m, act) {
+  function logActionForMessage(messageId) {
+    const group = Array.from(chatlog.querySelectorAll(".usergroup"))
+      .find(element => element.dataset.msgId === messageId);
+    return group ? group.querySelector(".log-action") : null;
+  }
+
+  async function prepareLog(m, act, options = {}) {
+    if (!act) return false;
     act.innerHTML = `<span class="logged">${t("adding")}</span>`;
     try {
       const thread = activePath.filter(message => message.kind === "advice");
       const targetIndex = thread.findIndex(message => message.id === m.id);
       const context = (targetIndex >= 0 ? thread.slice(0, targetIndex + 1) : [m])
         .slice(-12)
-        .map(message => ({ role: message.role, content: messageContentForAI(message) }));
+        .map(message => ({
+          id: message.id,
+          role: message.role,
+          content: messageContentForAI(message),
+        }));
       const res = await fetch("/.netlify/functions/chat", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ messages: context }),
       });
       const data = await res.json();
-      if (!res.ok) { addFailed(act, m); return; }
+      if (!res.ok) { addFailed(act, m); return false; }
       if (!data.has_observation) {
         act.innerHTML = `<span class="logged">${t("nothing_to_log")}</span>`;
-        return;
+        return false;
       }
+      const sourceMessage = options.fromCommand && data.source_message_id
+        ? messageRows.find(message => message.id === data.source_message_id) || m
+        : m;
+      const sourceAction = logActionForMessage(sourceMessage.id) || act;
+      const existingEntry = sourceMessage.entry_id ? await getEntry(sourceMessage.entry_id) : null;
       addButton(act, m);
-      openLogDialog(m, act, data);
+      openLogDialog(sourceMessage, sourceAction, existingEntry || data, {
+        requestMessage: options.fromCommand ? m : null,
+      });
+      return true;
     } catch {
       addFailed(act, m);
+      return false;
     }
   }
 
@@ -1245,8 +1271,12 @@
     openLogDialog(m, act, entry);
   }
 
-  function openLogDialog(m, act, record) {
-    activeLogDraft = { message: m, action: act };
+  function openLogDialog(m, act, record, options = {}) {
+    activeLogDraft = {
+      message: m,
+      action: act,
+      requestMessage: options.requestMessage || null,
+    };
     logDialog.querySelectorAll("[data-log-field]").forEach(field => {
       field.value = record[field.dataset.logField] ?? "";
     });
@@ -1295,13 +1325,21 @@
     try {
       const entry = await saveEntryForMessage(petId, draft.message.id, fields);
       if (!entry) throw new Error("No log entry was saved.");
-      for (const attachmentId of (draft.message.attachment_ids || [])) {
+      const attachmentIds = new Set([
+        ...(draft.message.attachment_ids || []),
+        ...(draft.requestMessage?.attachment_ids || []),
+      ]);
+      for (const attachmentId of attachmentIds) {
         await updateAttachment(attachmentId, { entry_id: entry.id });
+      }
+      if (draft.requestMessage && draft.requestMessage.id !== draft.message.id) {
+        await markMessageLogged(draft.requestMessage.id, entry.id);
+        draft.requestMessage.entry_id = entry.id;
       }
       await refreshAttachmentCache();
       draft.message.entry_id = entry.id;
-      loggedButton(draft.action, draft.message);
       closeLogDialog();
+      renderActiveChat();
       await refreshMeta();
       await renderEntries();
     } catch {

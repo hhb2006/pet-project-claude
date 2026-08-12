@@ -16,6 +16,9 @@ Extract these fields:
 - duration: how long the behavior lasted (e.g. "about 10 minutes")
 - intensity: an explicitly stated 1-10 score
 - recovery_period: how long it took the pet to settle back to normal afterward.
+- source_message_id: the ID marker of the USER message that most directly contains the event \
+being logged. For a request like "log what I just described", choose the earlier event message, \
+not the later logging command.
 
 Rules:
 - Extract only facts explicitly stated by the USER. Assistant messages may clarify what a \
@@ -69,6 +72,10 @@ const TOOL = {
         type: ["string", "null"],
         description: "Explicitly stated recovery time, or null.",
       },
+      source_message_id: {
+        type: ["string", "null"],
+        description: "The supplied ID of the user message that most directly contains the event.",
+      },
     },
     required: [
       "behavior_type",
@@ -77,6 +84,7 @@ const TOOL = {
       "duration",
       "intensity",
       "recovery_period",
+      "source_message_id",
     ],
   },
 };
@@ -102,6 +110,9 @@ exports.handler = async (event) => {
     return json(400, { error: "Could not read the request." });
   }
   const cleanMessages = normalizeMessages(messages);
+  const allowedSourceIds = new Set(cleanMessages
+    .filter(message => message.role === "user" && message.source_id)
+    .map(message => message.source_id));
   if (!cleanMessages.length || !cleanMessages.some(m => m.role === "user")) {
     return json(400, { error: "No usable conversation was provided." });
   }
@@ -121,7 +132,12 @@ exports.handler = async (event) => {
         system: SYSTEM_PROMPT,
         tools: [TOOL],
         tool_choice: { type: "tool", name: "record_event" },
-        messages: cleanMessages,
+        messages: cleanMessages.map(({ role, content, source_id }) => ({
+          role,
+          content: source_id
+            ? `<source_message_id>${source_id}</source_message_id>\n${content}`
+            : content,
+        })),
       }),
     });
 
@@ -135,7 +151,7 @@ exports.handler = async (event) => {
     if (!toolUse) {
       return json(502, { error: "The assistant didn't return a usable answer." });
     }
-    const record = cleanRecord(toolUse.input);
+    const record = cleanRecord(toolUse.input, allowedSourceIds);
     return json(200, {
       ...record,
       has_observation: record.behavior_type !== null,
@@ -161,13 +177,18 @@ function normalizeMessages(messages) {
     const content = message.content.slice(0, 5000);
     if (total + content.length > 30000) break;
     total += content.length;
-    clean.unshift({ role: message.role, content });
+    clean.unshift({
+      role: message.role,
+      content,
+      source_id: message.role === "user" && typeof message.id === "string"
+        ? message.id.slice(0, 200) : null,
+    });
   }
   while (clean[0] && clean[0].role === "assistant") clean.shift();
   return clean;
 }
 
-function cleanRecord(input) {
+function cleanRecord(input, allowedSourceIds = new Set()) {
   const text = value => {
     if (typeof value !== "string") return null;
     const clean = value.trim().slice(0, 2000);
@@ -182,6 +203,8 @@ function cleanRecord(input) {
     duration: text(input && input.duration),
     intensity,
     recovery_period: text(input && input.recovery_period),
+    source_message_id: allowedSourceIds.has(input && input.source_message_id)
+      ? input.source_message_id : null,
   };
 }
 
@@ -192,3 +215,5 @@ function json(statusCode, obj) {
     body: JSON.stringify(obj),
   };
 }
+
+exports._test = { normalizeMessages, cleanRecord };

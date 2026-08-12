@@ -4,15 +4,15 @@ const defaults = require("./vision-defaults.json");
 
 function getVisionConfig() {
   const baseUrl = String(
-    process.env.VISION_BASE_URL || defaults.VISION_BASE_URL
+    process.env.OPENAI_BASE_URL || defaults.OPENAI_BASE_URL
   ).trim().replace(/\/+$/, "");
   const model = String(
-    process.env.VISION_MODEL || defaults.VISION_MODEL
+    process.env.OPENAI_VISION_MODEL || defaults.OPENAI_VISION_MODEL
   ).trim();
   return {
-    apiKey: process.env.VISION_API_KEY,
-    endpoint: `${baseUrl}/v1/messages`,
-    model: model || defaults.VISION_MODEL,
+    apiKey: process.env.OPENAI_API_KEY,
+    endpoint: `${baseUrl}/v1/responses`,
+    model: model || defaults.OPENAI_VISION_MODEL,
   };
 }
 

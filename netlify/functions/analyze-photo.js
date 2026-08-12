@@ -57,26 +57,28 @@ exports.handler = async event => {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
-        max_tokens: 500,
-        system: SYSTEM_PROMPT,
-        messages: [{
+        max_output_tokens: 500,
+        reasoning: { effort: "low" },
+        instructions: SYSTEM_PROMPT,
+        input: [{
           role: "user",
           content: [
             {
-              type: "image",
-              source: { type: "base64", media_type: image.media_type, data: image.data },
+              type: "input_text",
+              text: `${language}\nReference data:\n${safeJson(reference)}`,
             },
             {
-              type: "text",
-              text: `${language}\nReference data:\n${safeJson(reference)}`,
+              type: "input_image",
+              image_url: `data:${image.media_type};base64,${image.data}`,
+              detail: "low",
             },
           ],
         }],
+        store: false,
       }),
       signal: AbortSignal.timeout(35_000),
     });
@@ -97,9 +99,11 @@ exports.handler = async event => {
   let data;
   try { data = await response.json(); }
   catch { return json(502, { error: "Photo analysis returned an unreadable result.", code: "vision_failed" }); }
-  const description = (Array.isArray(data.content) ? data.content : [])
-    .filter(block => block && block.type === "text" && typeof block.text === "string")
-    .map(block => block.text)
+  const description = (Array.isArray(data.output) ? data.output : [])
+    .filter(item => item && item.type === "message" && Array.isArray(item.content))
+    .flatMap(item => item.content)
+    .filter(part => part && part.type === "output_text" && typeof part.text === "string")
+    .map(part => part.text)
     .join("\n")
     .trim()
     .slice(0, 1200);

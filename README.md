@@ -160,20 +160,22 @@ Environment variables take precedence over the committed defaults. In Netlify,
 store `ANTHROPIC_API_KEY` as a secret environment variable; add the other two
 only when an environment needs an override. Never commit `.env`.
 
-Image analysis uses an independent API key and model. The committed defaults in
-`netlify/lib/vision-defaults.json` use Anthropic's Messages API with
-`claude-haiku-4-5-20251001`. Add the private key locally and in Netlify:
+Image analysis uses OpenAI's Responses API while chat, log extraction, and reports
+continue to use the DeepSeek Anthropic-compatible endpoint. The committed vision
+defaults in `netlify/lib/vision-defaults.json` use `gpt-5.6-luna`. Locally, only
+the two private keys are required:
 
 ```env
-VISION_API_KEY=your-anthropic-key
+ANTHROPIC_API_KEY=your-deepseek-key
+OPENAI_API_KEY=your-openai-key
 ```
 
-The endpoint and model remain replaceable with an image-capable,
-Anthropic-compatible provider:
+The OpenAI vision endpoint and model are already committed. Optional overrides
+remain available for testing, but do not need to be added to `.env`:
 
 ```env
-VISION_BASE_URL=https://api.anthropic.com
-VISION_MODEL=claude-haiku-4-5-20251001
+OPENAI_BASE_URL=https://api.openai.com
+OPENAI_VISION_MODEL=gpt-5.6-luna
 ```
 
 ### Where your data lives
@@ -196,8 +198,8 @@ the note below to move storage server-side.
    command empty; `netlify.toml` already sets publish dir `public` and the
    functions dir.
 2. In **Site configuration → Environment variables**, add
-   `ANTHROPIC_API_KEY` = your chat key and `VISION_API_KEY` = your Anthropic
-   vision key.
+   `ANTHROPIC_API_KEY` = your DeepSeek chat key and `OPENAI_API_KEY` = your
+   OpenAI vision key.
 3. **Redeploy** (env var changes need a fresh deploy). Open the site — you should
    see the logger, not a 404.
 

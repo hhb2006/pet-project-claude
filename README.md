@@ -74,8 +74,8 @@ it **never** suggests diagnoses.
 ## Web app (Netlify)
 
 The web app organizes everything **by pet**: each pet is its own project, with
-its own log, documents, and reports. It's a small static site plus three
-serverless functions and one streaming Edge Function — no build step.
+its own log, documents, and reports. It's a small static site plus serverless
+functions and one streaming Edge Function — no build step.
 
 Pages (`public/`):
 
@@ -84,15 +84,17 @@ Pages (`public/`):
 - `pet.html?id=…` — a pet's workspace, with three tabs:
   - **Chat** — talk freely about your pet, in saved sessions you can revisit
     (with a "＋ New chat" for a fresh topic, like any LLM chat app). Replies
-    stream into the page, with a collapsible thinking section and a stop
-    control. User messages can be edited; assistant replies can be copied or
+    stream into the page with a stop control. User messages can be edited;
+    assistant replies can be copied or
     regenerated. Editing and regeneration create switchable branches, so the
     original conversation and any log linked to it remain intact. Chat is
-    advice by default and **nothing is saved to the log unless you say so**:
-    every message you send carries its own **"＋ Complete & add to log"** action.
-    It extracts the details already mentioned, opens a small review form for
-    any corrections or missing fields, and saves exactly one entry linked to
-    that source message. The same control then becomes **"✓ Added · View/edit"**.
+    advice by default and **nothing is saved to the log unless you say so**.
+    You can use the **"＋ Complete & add to log"** action or say “log this” /
+    “把刚才的情况记到日志”. The assistant extracts the details already mentioned,
+    identifies the source event message, and opens a review form for corrections
+    or missing fields. It saves only after confirmation and reuses the linked entry
+    instead of creating a duplicate. The control then becomes
+    **"✓ Added · View/edit"**.
   - **Log** — every entry added from chat, newest first, each **editable** (fill
     in what the message didn't mention, or correct it — a blank field records as
     "not recorded") and deletable, plus
@@ -100,8 +102,10 @@ Pages (`public/`):
     stand now**, a behavioral profile and proportionate next steps — savable
     to Documents or downloadable as `.txt`. The report is generated from the
     log, so the two live together.
-  - **Documents** — write notes (vet visits, medication, diet), attach files
-    (photos, paperwork), and keep saved reports.
+  - **Archives & album** — write notes, attach paperwork, keep saved reports,
+    and add photos to a dated album. A newly uploaded album photo can be
+    analyzed once by a dedicated vision model; its text note is stored beside
+    the photo and becomes bounded, non-binary context for later chat replies.
 
 A pet's name, species and breed can be edited any time via **Edit details**.
 - `db.js` — the local data layer (pets, entries, documents, attachments, chat
@@ -117,7 +121,7 @@ translated too; the stored values stay English so records are language-neutral
 and switching languages never rewrites your data.
 
 Functions (`netlify/functions/`) and the streaming Edge Function
-(`netlify/edge-functions/`) — **your Anthropic API key lives here as an
+(`netlify/edge-functions/`) — **your OpenAI API key lives here as an
 environment variable and is never sent to the browser:**
 
 - `chat.js` — logging; calls the configured model with a forced tool for clean
@@ -126,39 +130,52 @@ environment variable and is never sent to the browser:**
   `analyze_behavior_log.py`), then has the configured model write the narrative
   report.
 - `advise.js` — non-streaming compatibility endpoint for general pet chat.
-- `advise-stream.js` — streams DeepSeek thinking and final-answer deltas to the
+- `analyze-photo.js` — sends a resized copy of a newly added album photo to the
+  separately configured vision model and returns one concise visual note. It
+  does not store the image.
+- `advise-stream.js` — streams OpenAI final-answer deltas to the
   chat interface through `/api/advise-stream`.
   General pet chat answers ordinary questions directly without
   turning the conversation into a logging questionnaire, and gives
   **non-diagnostic** help with clear emergency signposting.
 
-The committed defaults in `netlify/lib/llm-defaults.json` use DeepSeek's
-Anthropic-compatible API and `deepseek-v4-flash`. For local development, the
-ignored `.env` only needs the private key:
+Chat, log extraction, reports, and image analysis all use OpenAI's Responses API.
+The committed defaults use `gpt-5.6-luna`. For local development, the ignored
+`.env` needs the active OpenAI key:
 
 ```env
-ANTHROPIC_API_KEY=your-deepseek-key
+OPENAI_API_KEY=your-openai-key
 ```
 
-All three existing environment variables remain supported. To test another
-Anthropic-compatible endpoint or model without changing the committed defaults,
-override either value locally or in Netlify:
+The old Anthropic/DeepSeek key may remain in the local `.env` for a future
+provider switch, but the web app does not currently read it:
 
 ```env
-ANTHROPIC_BASE_URL=https://another-compatible-provider.example
-ANTHROPIC_MODEL=another-model
+ANTHROPIC_API_KEY=your-previous-provider-key
 ```
 
-Environment variables take precedence over the committed defaults. In Netlify,
-store `ANTHROPIC_API_KEY` as a secret environment variable; add the other two
-only when an environment needs an override. Never commit `.env`.
+The endpoint and models are already committed. Optional overrides remain
+available locally or in Netlify, but do not need to be added to `.env`:
+
+```env
+OPENAI_BASE_URL=https://api.openai.com
+OPENAI_MODEL=gpt-5.6-luna
+OPENAI_VISION_MODEL=gpt-5.6-luna
+```
+
+`OPENAI_MODEL` controls chat, log extraction, and reports. Image analysis uses
+the same value unless `OPENAI_VISION_MODEL` is set. Environment variables take
+precedence over committed defaults. Never commit `.env`.
 
 ### Where your data lives
 
-Everything is stored **privately in your own browser**, in IndexedDB (which,
-unlike `localStorage`, holds real files so attachments work). Nothing is uploaded;
-only the text you send to the assistant leaves the page. An existing single-pet
-log from an earlier version is migrated automatically into a pet on first load.
+Records and original files are stored **privately in your own browser**, in
+IndexedDB. Chat sends the relevant bounded text context to its configured AI.
+When an image is added to chat, a log, archives, or the album, the browser removes
+metadata, scales it to at most 1280px and sends that JPEG copy once to the configured
+vision AI. The returned text note is stored locally; later chats receive the note,
+never the image pixels. An existing single-pet log from an earlier version is migrated
+automatically into a pet on first load.
 
 Because storage is per-browser, your pets do **not** sync across devices, and
 clearing site data removes them — use the download buttons to keep copies. See
@@ -170,14 +187,15 @@ the note below to move storage server-side.
    command empty; `netlify.toml` already sets publish dir `public` and the
    functions dir.
 2. In **Site configuration → Environment variables**, add
-   `ANTHROPIC_API_KEY` = your key.
+   `OPENAI_API_KEY` = your OpenAI API key. `ANTHROPIC_API_KEY` may remain stored
+   but is not used by the current web app.
 3. **Redeploy** (env var changes need a fresh deploy). Open the site — you should
    see the logger, not a 404.
 
 If you still get a 404, check that the site's build settings in the Netlify UI
 haven't overridden `netlify.toml` (the publish directory must be `public`).
 Without the env var, the page loads but the assistant replies with a message
-asking the owner to set `ANTHROPIC_API_KEY`.
+asking the owner to set `OPENAI_API_KEY`.
 
 ### Regression checks
 

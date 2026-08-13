@@ -242,6 +242,58 @@ header.pet-header {
 
 /* Composer / forms */
 .composer { display: flex; gap: 8px; padding: 14px; border-top: 1px solid var(--line); }
+.composer-image-button {
+  flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0;
+  display: grid; place-items: center; align-self: flex-end;
+}
+.composer-image-button svg {
+  width: 21px; height: 21px; fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.composer-image-preview {
+  display: flex; gap: 9px; overflow-x: auto; padding: 10px 14px 0;
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--card));
+}
+.composer-image-preview[hidden] { display: none; }
+.pending-chat-image { position: relative; flex: 0 0 72px; width: 72px; }
+.pending-chat-image img {
+  display: block; width: 72px; height: 60px; object-fit: cover;
+  border: 1px solid var(--line); border-radius: 10px;
+}
+.pending-chat-image button {
+  position: absolute; top: -7px; right: -7px; width: 28px; height: 28px;
+  min-height: 28px; padding: 0; border: 2px solid var(--card); border-radius: 50%;
+  line-height: 1;
+}
+.voice-input {
+  flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0;
+  display: grid; place-items: center; align-self: flex-end;
+}
+.voice-input[hidden] { display: none; }
+.voice-input svg {
+  grid-area: 1 / 1; width: 21px; height: 21px; fill: none;
+  stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;
+}
+.voice-input .voice-stop-icon { display: none; }
+.composer button.voice-input.listening {
+  color: #fff; background: var(--accent-2); border-color: var(--accent-2);
+  box-shadow: 0 0 0 4px var(--accent-2-soft);
+  animation: voice-pulse 1.5s ease-in-out infinite;
+}
+.composer button.voice-input.listening .voice-mic-icon { display: none; }
+.composer button.voice-input.listening .voice-stop-icon { display: block; }
+.voice-status {
+  margin: 0; padding: 0 14px 9px; color: var(--muted);
+  background: color-mix(in srgb, var(--accent-soft) 30%, var(--card));
+  font-size: 0.8rem; line-height: 1.4;
+}
+.voice-status.error { color: #b4462f; }
+@keyframes voice-pulse {
+  50% { box-shadow: 0 0 0 7px var(--accent-2-soft); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer button.voice-input.listening { animation: none; }
+}
 textarea, input[type="text"], input[type="number"], input[type="search"], input[type="date"] {
   flex: 1; resize: none; border: 1px solid var(--line); border-radius: 12px;
   padding: 11px 14px; font: inherit; color: inherit; background: var(--bg); max-height: 140px;
@@ -443,6 +495,26 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 }
 .assistant-actions { justify-content: flex-start; }
 .user-actions { justify-content: flex-end; }
+.message-image-grid, .linked-image-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px; width: min(100%, 420px); margin-top: 8px;
+}
+.linked-image-card {
+  min-width: 0; overflow: hidden; background: var(--card);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+.linked-image-card img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.linked-image-copy { padding: 7px 8px 8px; }
+.linked-image-copy strong { display: block; overflow-wrap: anywhere; font-size: 0.72rem; line-height: 1.35; }
+.linked-image-copy details { margin-top: 4px; font-size: 0.7rem; }
+.linked-image-copy summary { color: var(--accent-strong); font-weight: 700; cursor: pointer; }
+.linked-image-copy p { margin: 5px 0 0; color: var(--muted); line-height: 1.45; }
+.linked-image-status { display: block; margin-top: 4px; color: var(--muted); font-size: 0.68rem; line-height: 1.35; }
+.linked-image-status.failed { color: #9f3f2e; }
+.archive-upload-status {
+  margin: 9px 0 0; color: var(--muted); font-size: 0.78rem; line-height: 1.45;
+}
+.archive-upload-status.error { color: #9f3f2e; }
 .branch-control { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); }
 .branch-control .linkbtn {
   width: 20px; height: 20px; padding: 0; text-decoration: none;
@@ -673,6 +745,17 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
   padding-top: 16px;
 }
 .album-dialog .album-form button { width: auto; }
+.photo-upload-status {
+  margin: -5px 20px 12px;
+  padding: 9px 12px;
+  color: var(--ink);
+  background: color-mix(in srgb, var(--accent-soft) 54%, var(--card));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.photo-upload-status.error { color: #9f3f2e; border-color: color-mix(in srgb, #b4462f 38%, var(--line)); }
 .album-view-controls {
   margin: 0 20px 8px;
   padding: 11px 13px 10px;
@@ -778,6 +861,12 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .album-photo-copy { display: grid; gap: 3px; padding: 10px 11px 4px; }
 .album-photo-copy strong { font-size: 0.88rem; line-height: 1.35; overflow-wrap: anywhere; }
 .album-photo-copy span { color: var(--muted); font-size: 0.72rem; overflow-wrap: anywhere; }
+.album-ai-note { margin-top: 5px; font-size: 0.75rem; }
+.album-ai-note summary { color: var(--accent-strong); font-weight: 750; cursor: pointer; }
+.album-ai-note p { margin: 6px 0 2px; color: var(--muted); line-height: 1.5; }
+.album-ai-status { margin-top: 5px; line-height: 1.4; }
+.album-ai-status.pending { color: var(--accent-strong); }
+.album-ai-status.failed { color: #9f3f2e; }
 .album-photo-actions { display: flex; flex-wrap: wrap; gap: 6px; padding: 7px 10px 10px; }
 .album-photo-actions button { min-height: 44px; padding: 7px 10px; font-size: 0.76rem; }
 .album-empty {
@@ -819,6 +908,21 @@ select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .photo-dialog-copy h2 { margin: 0; font-size: 1.15rem; overflow-wrap: anywhere; }
 .photo-dialog-copy p { margin: 5px 0 0; color: var(--muted); font-size: 0.82rem; }
 .photo-dialog-copy .dialog-actions { margin-top: 14px; }
+.photo-ai-dialog {
+  margin-top: 12px;
+  padding: 11px 13px;
+  background: color-mix(in srgb, var(--accent-soft) 42%, var(--card));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.photo-ai-dialog strong { font-size: 0.78rem; color: var(--accent-strong); }
+.photo-ai-dialog p { margin: 5px 0 0; color: var(--ink); font-size: 0.84rem; line-height: 1.55; }
+@media (prefers-color-scheme: dark) {
+  .photo-upload-status.error,
+  .album-ai-status.failed,
+  .linked-image-status.failed,
+  .archive-upload-status.error { color: #e8917a; }
+}
 
 @media (min-width: 521px) and (max-width: 980px) {
   .log-tools { grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr) auto; align-items: center; }

@@ -14,6 +14,17 @@ test("builds newest-first log and archive memory without binary photo data", () 
     documents: [{ kind: "note", title: "Diet", body: "Prefers wet food", created_at: "2026-03-01T00:00:00Z" }],
     attachments: [
       { kind: "photo", name: "pet.jpg", type: "image/jpeg", blob: { secret: true }, created_at: "2026-04-01" },
+      {
+        kind: "photo",
+        name: "park.jpg",
+        type: "image/jpeg",
+        blob: { hiddenBinary: true },
+        caption: "At the park",
+        ai_description: "Standing on grass beside a red ball",
+        taken_at: "2026-04-03",
+        ai_analyzed_at: "2026-04-03T12:00:00Z",
+        created_at: "2026-04-03",
+      },
       { kind: "file", name: "lab.pdf", caption: "Blood test", type: "application/pdf", blob: { secret: true }, created_at: "2026-04-02" },
     ],
   });
@@ -23,8 +34,13 @@ test("builds newest-first log and archive memory without binary photo data", () 
   assert.equal(memory.log_entries[1].intensity, null);
   assert.equal(memory.archive_documents[0].body, "Prefers wet food");
   assert.deepEqual(memory.archive_files.map(file => file.name), ["lab.pdf"]);
+  assert.equal(memory.image_notes[0].owner_caption, "At the park");
+  assert.equal(memory.image_notes[0].visual_note, "Standing on grass beside a red ball");
+  assert.equal(memory.image_notes[0].source, "album");
   assert.equal(JSON.stringify(memory).includes("secret"), false);
+  assert.equal(JSON.stringify(memory).includes("hiddenBinary"), false);
   assert.equal(JSON.stringify(memory).includes("pet.jpg"), false);
+  assert.equal(JSON.stringify(memory).includes("park.jpg"), false);
 });
 
 test("caps individual fields and total archive document memory", () => {

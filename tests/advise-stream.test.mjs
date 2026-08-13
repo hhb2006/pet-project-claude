@@ -5,9 +5,9 @@ globalThis.Netlify = {
   env: {
     get(name) {
       return {
-        ANTHROPIC_API_KEY: "test-key",
-        ANTHROPIC_BASE_URL: "https://example.test/anthropic",
-        ANTHROPIC_MODEL: "test-model",
+        OPENAI_API_KEY: "test-key",
+        OPENAI_BASE_URL: "https://example.test/openai",
+        OPENAI_MODEL: "test-model",
       }[name];
     },
   },
@@ -42,6 +42,20 @@ function openSse(events, onCancel = () => {}) {
   });
 }
 
+function chunkedSse(chunks) {
+  return new ReadableStream({
+    start(controller) {
+      let index = 0;
+      const push = () => {
+        if (index >= chunks.length) return;
+        controller.enqueue(new TextEncoder().encode(chunks[index++]));
+        if (index < chunks.length) setTimeout(push, 5);
+      };
+      push();
+    },
+  });
+}
+
 async function eventsFrom(response) {
   return (await response.text())
     .trim()
@@ -50,18 +64,18 @@ async function eventsFrom(response) {
     .map(JSON.parse);
 }
 
-test("finishes immediately on message_stop even when upstream stays open", async () => {
+test("finishes immediately on response.completed even when upstream stays open", async () => {
   let canceled = false;
   globalThis.fetch = async () => new Response(openSse([
     {
-      type: "content_block_delta",
-      delta: { type: "thinking_delta", thinking: "brief thought" },
+      type: "response.reasoning_summary_text.delta",
+      delta: "brief thought",
     },
     {
-      type: "content_block_delta",
-      delta: { type: "text_delta", text: "OK" },
+      type: "response.output_text.delta",
+      delta: "OK",
     },
-    { type: "message_stop" },
+    { type: "response.completed", response: { status: "completed" } },
   ], () => { canceled = true; }));
 
   const response = await handler(request());
@@ -73,26 +87,42 @@ test("finishes immediately on message_stop even when upstream stays open", async
   ]);
 
   assert.deepEqual(events.map(event => event.type), [
-    "thinking",
     "answer",
     "done",
   ]);
   assert.equal(canceled, true);
 });
 
-test("finishes on message_delta stop_reason without waiting for message_stop", async () => {
+test("finishes on response.incomplete without waiting for the connection to close", async () => {
   globalThis.fetch = async () => new Response(openSse([
     {
-      type: "content_block_delta",
-      delta: { type: "text_delta", text: "Done" },
+      type: "response.output_text.delta",
+      delta: "Done",
     },
     {
-      type: "message_delta",
-      delta: { stop_reason: "end_turn", stop_sequence: null },
+      type: "response.incomplete",
+      response: { status: "incomplete" },
     },
   ]));
 
   const events = await eventsFrom(await handler(request()));
+  assert.deepEqual(events.map(event => event.type), ["answer", "done"]);
+});
+
+test("keeps reading when lifecycle events arrive before answer events", async () => {
+  globalThis.fetch = async () => new Response(chunkedSse([
+    'event: response.created\ndata: {"type":"response.created"}\n\n',
+    'event: response.in_progress\ndata: {"type":"response.in_progress"}\n\n',
+    'event: response.output_text.delta\ndata: {"type":"response.output_text.delta","delta":"OK"}\n\n' +
+      'event: response.completed\ndata: {"type":"response.completed"}\n\n',
+  ]));
+
+  const events = await Promise.race([
+    eventsFrom(await handler(request())),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("stream stalled on lifecycle event")), 500)
+    ),
+  ]);
   assert.deepEqual(events.map(event => event.type), ["answer", "done"]);
 });
 
@@ -123,8 +153,8 @@ test("adds bounded log and archive memory as untrusted pet context", async () =>
   globalThis.fetch = async (_url, options) => {
     upstreamRequest = JSON.parse(options.body);
     return new Response(openSse([
-      { type: "content_block_delta", delta: { type: "text_delta", text: "Personalized" } },
-      { type: "message_stop" },
+      { type: "response.output_text.delta", delta: "Personalized" },
+      { type: "response.completed", response: { status: "completed" } },
     ]));
   };
 
@@ -138,15 +168,25 @@ test("adds bounded log and archive memory as untrusted pet context", async () =>
       ],
       archive_documents: [{ kind: "note", title: "Diet", body: longBody }],
       archive_files: [{ name: "lab.pdf", description: "blood test" }],
+      image_notes: [{
+        source: "chat",
+        taken_at: "2026-08-01",
+        owner_caption: "At the park",
+        visual_note: "Standing on grass beside a red ball",
+      }],
     },
   }));
   await eventsFrom(response);
 
-  const contextMessage = upstreamRequest.messages[0].content;
+  const contextMessage = upstreamRequest.input[0].content;
   assert.equal(contextMessage.includes("paces before storms"), true);
   assert.equal(contextMessage.includes('"intensity":null'), true);
   assert.equal(contextMessage.includes("lab.pdf"), true);
+  assert.equal(contextMessage.includes("Standing on grass beside a red ball"), true);
   assert.equal(contextMessage.includes("<override>"), false);
   assert.equal(contextMessage.includes("x".repeat(1201)), false);
-  assert.equal(upstreamRequest.system.includes("untrusted"), true);
+  assert.equal(upstreamRequest.instructions.includes("untrusted"), true);
+  assert.equal(upstreamRequest.model, "test-model");
+  assert.equal(upstreamRequest.store, false);
+  assert.deepEqual(upstreamRequest.reasoning, { effort: "none" });
 });

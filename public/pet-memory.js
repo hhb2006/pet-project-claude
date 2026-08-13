@@ -1,5 +1,6 @@
 // Builds a compact, serializable snapshot of locally stored pet records for
-// chat personalization. Blobs and photo data are intentionally never copied.
+// chat personalization. Blobs and image pixels are intentionally never copied;
+// only the vision model's bounded text note can become image memory.
 (function exposePetMemory(root) {
   function build({ entries = [], documents = [], attachments = [] } = {}) {
     const logEntries = newest(entries, "logged_at").slice(0, 24).map(entry => ({
@@ -21,7 +22,9 @@
     }));
 
     const archiveFiles = newest(attachments, "created_at")
-      .filter(attachment => !isPhoto(attachment))
+      .filter(attachment => !isImage(attachment) &&
+        (attachment.source_type === "archive" ||
+         (attachment.kind === "file" && !attachment.source_type)))
       .slice(0, 16)
       .map(attachment => ({
         name: text(attachment.name, 240),
@@ -31,10 +34,22 @@
         edited_at: text(attachment.edited_at, 40),
       }));
 
+    const imageNotes = newest(attachments, "created_at")
+      .filter(attachment => isImage(attachment) && attachment.ai_description)
+      .slice(0, 24)
+      .map(attachment => ({
+        source: text(attachment.source_type || (isPhoto(attachment) ? "album" : "archive"), 20),
+        taken_at: text(attachment.taken_at || attachment.created_at, 40),
+        owner_caption: text(attachment.caption, 400),
+        visual_note: text(attachment.ai_description, 1200),
+        analyzed_at: text(attachment.ai_analyzed_at, 40),
+      }));
+
     return {
       log_entries: fitToBudget(logEntries, 6500),
       archive_documents: fitToBudget(archiveDocuments, 7500),
       archive_files: fitToBudget(archiveFiles, 1800),
+      image_notes: fitToBudget(imageNotes, 9000),
     };
   }
 
@@ -46,6 +61,11 @@
   function isPhoto(attachment) {
     return attachment && (attachment.kind === "photo" ||
       (!attachment.kind && String(attachment.type || "").startsWith("image/")));
+  }
+
+  function isImage(attachment) {
+    return attachment && (isPhoto(attachment) ||
+      attachment.kind === "image" || String(attachment.type || "").startsWith("image/"));
   }
 
   function text(value, maxLength) {

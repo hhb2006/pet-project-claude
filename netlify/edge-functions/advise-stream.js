@@ -6,10 +6,10 @@ const encoder = new TextEncoder();
 export default async function adviseStream(request) {
   if (request.method !== "POST") return json(405, { error: "Method not allowed." });
 
-  const apiKey = Netlify.env.get("ANTHROPIC_API_KEY");
+  const apiKey = Netlify.env.get("OPENAI_API_KEY");
   if (!apiKey) {
     return json(500, {
-      error: "The site owner hasn't set ANTHROPIC_API_KEY yet. Add it in Netlify → " +
+      error: "The site owner hasn't set OPENAI_API_KEY yet. Add it in Netlify → " +
         "Site configuration → Environment variables, then redeploy.",
     });
   }
@@ -25,28 +25,28 @@ export default async function adviseStream(request) {
   if (!messages.length) return json(400, { error: "No usable question was provided." });
 
   const baseUrl = String(
-    Netlify.env.get("ANTHROPIC_BASE_URL") || defaults.ANTHROPIC_BASE_URL
+    Netlify.env.get("OPENAI_BASE_URL") || defaults.OPENAI_BASE_URL
   ).trim().replace(/\/+$/, "");
   const model = String(
-    Netlify.env.get("ANTHROPIC_MODEL") || defaults.ANTHROPIC_MODEL
-  ).trim() || defaults.ANTHROPIC_MODEL;
+    Netlify.env.get("OPENAI_MODEL") || defaults.OPENAI_MODEL
+  ).trim() || defaults.OPENAI_MODEL;
 
   let upstream;
   try {
-    upstream = await fetch(`${baseUrl}/v1/messages`, {
+    upstream = await fetch(`${baseUrl}/v1/responses`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
-        system: SYSTEM_PROMPT + langNote(body.lang),
-        messages: addPetContext(messages, body.pet, body.memory),
-        thinking: { type: "enabled" },
+        max_output_tokens: 2048,
+        instructions: SYSTEM_PROMPT + langNote(body.lang),
+        input: addPetContext(messages, body.pet, body.memory),
+        reasoning: { effort: "none" },
         stream: true,
+        store: false,
       }),
       signal: request.signal,
     });
@@ -86,21 +86,11 @@ export default async function adviseStream(request) {
     controller.close();
   };
 
-  const stream = new ReadableStream({
-    start(controller) {
-      // Netlify can terminate very long Edge responses before the final frame.
-      // Close cleanly first so the browser keeps all deltas it already received.
-      timeoutId = setTimeout(() => {
-        if (finished) return;
-        controller.enqueue(line({ type: "timeout" }));
-        finish(controller);
-        reader.cancel().catch(() => {});
-      }, 45000);
-    },
-    async pull(controller) {
-      if (finished) return;
-      try {
+  const pump = async controller => {
+    try {
+      while (!finished) {
         const { done, value } = await reader.read();
+        if (finished) return;
         if (done) {
           flushSse(pending, controller);
           finish(controller);
@@ -115,11 +105,25 @@ export default async function adviseStream(request) {
           reader.cancel().catch(() => {});
           return;
         }
-      } catch (error) {
-        if (finished) return;
-        controller.enqueue(line({ type: "error", error: String(error) }));
-        finish(controller);
       }
+    } catch (error) {
+      if (finished) return;
+      controller.enqueue(line({ type: "error", error: String(error) }));
+      finish(controller);
+    }
+  };
+
+  const stream = new ReadableStream({
+    start(controller) {
+      // Netlify can terminate very long Edge responses before the final frame.
+      // Close cleanly first so the browser keeps all deltas it already received.
+      timeoutId = setTimeout(() => {
+        if (finished) return;
+        controller.enqueue(line({ type: "timeout" }));
+        finish(controller);
+        reader.cancel().catch(() => {});
+      }, 45000);
+      void pump(controller);
     },
     cancel() {
       finished = true;
@@ -156,8 +160,8 @@ function flushSse(frame, controller) {
   } catch {
     return false;
   }
-  if (event.type === "error") {
-    const providerError = event.error || {};
+  if (event.type === "error" || event.type === "response.failed") {
+    const providerError = event.error || event.response?.error || {};
     const code = classifyErrorCode(null, providerError.code, providerError.type);
     const requestId = providerError.request_id || event.request_id || null;
     console.warn("advise upstream stream failed", {
@@ -173,25 +177,11 @@ function flushSse(frame, controller) {
     return true;
   }
 
-  const delta = event.delta || {};
-  const thinking = firstString(
-    delta.thinking,
-    delta.reasoning_content,
-    event.reasoning_content
-  );
-  const answer = firstString(delta.text, delta.content, event.content);
-  if (delta.type === "thinking_delta" || thinking) {
-    if (thinking) controller.enqueue(line({ type: "thinking", delta: thinking }));
+  if (event.type === "response.output_text.delta" &&
+      typeof event.delta === "string" && event.delta) {
+    controller.enqueue(line({ type: "answer", delta: event.delta }));
   }
-  if (delta.type === "text_delta" || answer) {
-    if (answer) controller.enqueue(line({ type: "answer", delta: answer }));
-  }
-  return event.type === "message_stop" ||
-    (event.type === "message_delta" && typeof delta.stop_reason === "string" && delta.stop_reason);
-}
-
-function firstString(...values) {
-  return values.find(value => typeof value === "string" && value.length) || "";
+  return event.type === "response.completed" || event.type === "response.incomplete";
 }
 
 function line(value) {
